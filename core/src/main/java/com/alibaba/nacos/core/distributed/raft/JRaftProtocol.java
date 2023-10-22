@@ -16,28 +16,6 @@
 
 package com.alibaba.nacos.core.distributed.raft;
 
-import com.alibaba.nacos.common.model.RestResult;
-import com.alibaba.nacos.common.notify.NotifyCenter;
-import com.alibaba.nacos.common.notify.listener.Subscriber;
-import com.alibaba.nacos.common.notify.Event;
-import com.alibaba.nacos.common.utils.MapUtil;
-import com.alibaba.nacos.common.utils.ThreadUtils;
-import com.alibaba.nacos.consistency.ProtocolMetaData;
-import com.alibaba.nacos.consistency.SerializeFactory;
-import com.alibaba.nacos.consistency.Serializer;
-import com.alibaba.nacos.consistency.cp.CPProtocol;
-import com.alibaba.nacos.consistency.cp.RequestProcessor4CP;
-import com.alibaba.nacos.consistency.cp.MetadataKey;
-import com.alibaba.nacos.consistency.entity.ReadRequest;
-import com.alibaba.nacos.consistency.entity.Response;
-import com.alibaba.nacos.consistency.entity.WriteRequest;
-import com.alibaba.nacos.core.cluster.Member;
-import com.alibaba.nacos.core.cluster.ServerMemberManager;
-import com.alibaba.nacos.core.distributed.AbstractConsistencyProtocol;
-import com.alibaba.nacos.core.distributed.raft.exception.NoSuchRaftGroupException;
-import com.alibaba.nacos.core.utils.Loggers;
-import com.alipay.sofa.jraft.Node;
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +24,29 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.alibaba.nacos.common.model.RestResult;
+import com.alibaba.nacos.common.notify.Event;
+import com.alibaba.nacos.common.notify.NotifyCenter;
+import com.alibaba.nacos.common.notify.listener.Subscriber;
+import com.alibaba.nacos.common.utils.MapUtil;
+import com.alibaba.nacos.common.utils.ThreadUtils;
+import com.alibaba.nacos.consistency.ProtocolMetaData;
+import com.alibaba.nacos.consistency.SerializeFactory;
+import com.alibaba.nacos.consistency.Serializer;
+import com.alibaba.nacos.consistency.cp.CPProtocol;
+import com.alibaba.nacos.consistency.cp.MetadataKey;
+import com.alibaba.nacos.consistency.cp.RequestProcessor4CP;
+import com.alibaba.nacos.consistency.entity.ReadRequest;
+import com.alibaba.nacos.consistency.entity.Response;
+import com.alibaba.nacos.consistency.entity.WriteRequest;
+import com.alibaba.nacos.core.cluster.Member;
+import com.alibaba.nacos.core.cluster.ServerMemberManager;
+import com.alibaba.nacos.core.distributed.AbstractConsistencyProtocol;
+import com.alibaba.nacos.core.distributed.ProtocolManager;
+import com.alibaba.nacos.core.distributed.raft.exception.NoSuchRaftGroupException;
+import com.alibaba.nacos.core.utils.Loggers;
+import com.alipay.sofa.jraft.Node;
 
 /**
  * A concrete implementation of CP protocol: JRaft.
@@ -86,6 +87,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *                        │                  │
  *                        └──────────────────┘
  * </pre>
+ *
+ * {@link ProtocolManager#getCpProtocol()} ->
+ *
  *
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */

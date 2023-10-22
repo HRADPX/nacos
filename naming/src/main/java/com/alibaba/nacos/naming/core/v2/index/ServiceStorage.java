@@ -16,6 +16,17 @@
 
 package com.alibaba.nacos.naming.core.v2.index;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.api.naming.pojo.Instance;
 import com.alibaba.nacos.api.naming.pojo.ServiceInfo;
 import com.alibaba.nacos.naming.core.v2.ServiceManager;
@@ -29,16 +40,6 @@ import com.alibaba.nacos.naming.core.v2.pojo.InstancePublishInfo;
 import com.alibaba.nacos.naming.core.v2.pojo.Service;
 import com.alibaba.nacos.naming.misc.SwitchDomain;
 import com.alibaba.nacos.naming.utils.InstanceUtil;
-import org.springframework.stereotype.Component;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Service storage.
@@ -55,7 +56,17 @@ public class ServiceStorage {
     private final SwitchDomain switchDomain;
     
     private final NamingMetadataManager metadataManager;
-    
+
+    // 存储实例的信息
+    // 写入路径:
+    // 1. 客户端启动发起订阅请求 -> 服务端处理请求发布 ClientSubscribeServiceClient 事件
+    // -> ClientServiceIndexesManager 处理并发布 ServiceSubscribedEvent -> NamingSubscriberServiceV2Impl
+    // 将事件包装成延迟任务，通过延迟任务调度引擎分发调度，最后会调用 getPushData 方法完成客户端 Service 信息的写入。
+    // 2. 客户端启动时会开启一个定时查询任务，也会调用入 getPushData 方法完成信息的写入。
+
+    // 上述两个路径都有可能完成信息的写入，但是只有一个会写入，后续都是从该缓存中获取。
+
+    // 上面的前提是注册请求已经处理，并且将实例的 Service 对象写入 ServiceManager#singletonRepository 对象中。
     private final ConcurrentMap<Service, ServiceInfo> serviceDataIndexes;
     
     private final ConcurrentMap<Service, Set<String>> serviceClusterIndex;
@@ -77,14 +88,17 @@ public class ServiceStorage {
     public ServiceInfo getData(Service service) {
         return serviceDataIndexes.containsKey(service) ? serviceDataIndexes.get(service) : getPushData(service);
     }
-    
+
+    // see ServiceStorage#serviceDataIndexes
     public ServiceInfo getPushData(Service service) {
         ServiceInfo result = emptyServiceInfo(service);
         if (!ServiceManager.getInstance().containSingleton(service)) {
             return result;
         }
         Service singleton = ServiceManager.getInstance().getSingleton(service);
+        // 设置所有实例
         result.setHosts(getAllInstancesFromIndex(singleton));
+        // 缓存
         serviceDataIndexes.put(singleton, result);
         return result;
     }
@@ -102,11 +116,14 @@ public class ServiceStorage {
         result.setCacheMillis(switchDomain.getDefaultPushCacheMillis());
         return result;
     }
-    
+
+    // 获取服务的所有实例
     private List<Instance> getAllInstancesFromIndex(Service service) {
         Set<Instance> result = new HashSet<>();
         Set<String> clusters = new HashSet<>();
+        // 获取所有的客户端id
         for (String each : serviceIndexesManager.getAllClientsRegisteredService(service)) {
+            // 根据客户端id 获取对应实例信息
             Optional<InstancePublishInfo> instancePublishInfo = getInstanceInfo(each, service);
             if (instancePublishInfo.isPresent()) {
                 InstancePublishInfo publishInfo = instancePublishInfo.get();
@@ -145,6 +162,7 @@ public class ServiceStorage {
     }
     
     private Optional<InstancePublishInfo> getInstanceInfo(String clientId, Service service) {
+        // 根据客户端id获取客户端实例（这里的客户端实例可以看作是一个连接实例）
         Client client = clientManager.getClient(clientId);
         if (null == client) {
             return Optional.empty();

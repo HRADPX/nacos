@@ -16,6 +16,16 @@
 
 package com.alibaba.nacos.client.naming.remote.gprc;
 
+import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 import com.alibaba.nacos.api.common.Constants;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.naming.CommonParams;
@@ -59,16 +69,6 @@ import com.alibaba.nacos.common.remote.client.ServerListFactory;
 import com.alibaba.nacos.common.utils.CollectionUtils;
 import com.alibaba.nacos.common.utils.JacksonUtils;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.function.Function;
-import java.util.stream.Collectors;
-
-import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
-
 /**
  * Naming grpc client proxy.
  *
@@ -96,10 +96,14 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
         labels.put(RemoteConstants.LABEL_SOURCE, RemoteConstants.LABEL_SOURCE_SDK);
         labels.put(RemoteConstants.LABEL_MODULE, RemoteConstants.LABEL_MODULE_NAMING);
         labels.put(Constants.APPNAME, AppNameUtils.getAppName());
+        // 创建 rpc client
         this.rpcClient = RpcClientFactory.createClient(uuid, ConnectionType.GRPC, labels,
                 RpcClientTlsConfig.properties(properties.asProperties()));
+        // 创建 redoService，它内部维护一个 Map，用来保存需要向 nacos 服务端注册的客户端实例，在客户端首次注册时，添加到这个 Map 中，
+        // 同时，它也会开启一个定时调度任务，从上述的 Map 取出要注册的实例，每隔 3s 向服务端发起一次心跳。
         this.redoService = new NamingGrpcRedoService(this);
         NAMING_LOGGER.info("Create naming rpc client for uuid->{}", uuid);
+        // 创建连接
         start(serverListFactory, serviceInfoHolder);
     }
     
@@ -107,7 +111,9 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
         rpcClient.serverListFactory(serverListFactory);
         rpcClient.registerConnectionListener(redoService);
         rpcClient.registerServerRequestHandler(new NamingPushRequestHandler(serviceInfoHolder));
+        // 创建连接
         rpcClient.start();
+        // 注册订阅者
         NotifyCenter.registerSubscriber(this);
     }
     
@@ -213,6 +219,7 @@ public class NamingGrpcClientProxy extends AbstractNamingClientProxy {
         InstanceRequest request = new InstanceRequest(namespaceId, serviceName, groupName,
                 NamingRemoteConstants.REGISTER_INSTANCE, instance);
         requestToServer(request, Response.class);
+        // 注册成功，更新实例（InstanceRedoData）状态 registered = true, unregistering = false
         redoService.instanceRegistered(serviceName, groupName);
     }
     

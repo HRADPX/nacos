@@ -16,6 +16,15 @@
 
 package com.alibaba.nacos.client.naming.remote.gprc.redo;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+
 import com.alibaba.nacos.api.naming.pojo.Instance;
 import com.alibaba.nacos.api.naming.pojo.ServiceInfo;
 import com.alibaba.nacos.api.naming.utils.NamingUtils;
@@ -26,15 +35,6 @@ import com.alibaba.nacos.client.naming.remote.gprc.redo.data.SubscriberRedoData;
 import com.alibaba.nacos.client.utils.LogUtils;
 import com.alibaba.nacos.common.executor.NameThreadFactory;
 import com.alibaba.nacos.common.remote.client.ConnectionEventListener;
-
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Naming client gprc redo service.
@@ -53,7 +53,8 @@ public class NamingGrpcRedoService implements ConnectionEventListener {
      * TODO get redo delay from config.
      */
     private static final long DEFAULT_REDO_DELAY = 3000L;
-    
+
+    // 保存已注册的实例
     private final ConcurrentMap<String, InstanceRedoData> registeredInstances = new ConcurrentHashMap<>();
     
     private final ConcurrentMap<String, SubscriberRedoData> subscribes = new ConcurrentHashMap<>();
@@ -64,6 +65,7 @@ public class NamingGrpcRedoService implements ConnectionEventListener {
     
     public NamingGrpcRedoService(NamingGrpcClientProxy clientProxy) {
         this.redoExecutor = new ScheduledThreadPoolExecutor(REDO_THREAD, new NameThreadFactory(REDO_THREAD_NAME));
+        // 开启一个定时注册的调度任务
         this.redoExecutor.scheduleWithFixedDelay(new RedoScheduledTask(clientProxy, this), DEFAULT_REDO_DELAY,
                 DEFAULT_REDO_DELAY, TimeUnit.MILLISECONDS);
     }
@@ -71,9 +73,13 @@ public class NamingGrpcRedoService implements ConnectionEventListener {
     public boolean isConnected() {
         return connected;
     }
-    
+
+    /**
+     * 与服务端连接创建成功 -->
+     */
     @Override
     public void onConnected() {
+        // 创建连接成功后，会通过异步方式回调设置为 true
         connected = true;
         LogUtils.NAMING_LOGGER.info("Grpc connection connect");
     }
@@ -83,6 +89,7 @@ public class NamingGrpcRedoService implements ConnectionEventListener {
         connected = false;
         LogUtils.NAMING_LOGGER.warn("Grpc connection disconnect, mark to redo");
         synchronized (registeredInstances) {
+            // 更新 registered = false，会改变 redoData#getRedoType 的返回值，会触发构造方法里的定时任务调度
             registeredInstances.values().forEach(instanceRedoData -> instanceRedoData.setRegistered(false));
         }
         synchronized (subscribes) {

@@ -16,15 +16,15 @@
 
 package com.alibaba.nacos.naming.core.v2;
 
-import com.alibaba.nacos.common.notify.NotifyCenter;
-import com.alibaba.nacos.common.utils.ConcurrentHashSet;
-import com.alibaba.nacos.naming.core.v2.event.metadata.MetadataEvent;
-import com.alibaba.nacos.naming.core.v2.pojo.Service;
-
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import com.alibaba.nacos.common.notify.NotifyCenter;
+import com.alibaba.nacos.common.utils.ConcurrentHashSet;
+import com.alibaba.nacos.naming.core.v2.event.metadata.MetadataEvent;
+import com.alibaba.nacos.naming.core.v2.pojo.Service;
 
 /**
  * Nacos service manager for v2.
@@ -34,9 +34,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ServiceManager {
     
     private static final ServiceManager INSTANCE = new ServiceManager();
-    
+
+    // 客户端启动发起注册请求时，保存 Service
     private final ConcurrentHashMap<Service, Service> singletonRepository;
-    
+
+    // 客户端启动发起注册请求时，用于保存 namespace 到 Service 集合的映射
     private final ConcurrentHashMap<String, Set<Service>> namespaceSingletonMaps;
     
     private ServiceManager() {
@@ -60,6 +62,7 @@ public class ServiceManager {
      */
     public Service getSingleton(Service service) {
         singletonRepository.computeIfAbsent(service, key -> {
+            // 处理该事件的订阅者：NamingMetadataManager#onEvent
             NotifyCenter.publishEvent(new MetadataEvent.ServiceMetadataEvent(service, false));
             return service;
         });

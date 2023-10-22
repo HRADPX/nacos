@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.naming.push.v2.task;
 
+import java.util.Collection;
+
 import com.alibaba.nacos.api.naming.pojo.ServiceInfo;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.task.AbstractExecuteTask;
@@ -31,8 +33,6 @@ import com.alibaba.nacos.naming.push.v2.PushConfig;
 import com.alibaba.nacos.naming.push.v2.PushDataWrapper;
 import com.alibaba.nacos.naming.push.v2.hook.PushResult;
 import com.alibaba.nacos.naming.push.v2.hook.PushResultHookHolder;
-
-import java.util.Collection;
 
 /**
  * Nacos naming push execute task.
@@ -58,6 +58,7 @@ public class PushExecuteTask extends AbstractExecuteTask {
         try {
             PushDataWrapper wrapper = generatePushData();
             ClientManager clientManager = delayTaskEngine.getClientManager();
+            // 获取要推送的客户端 id
             for (String each : getTargetClientIds()) {
                 Client client = clientManager.getClient(each);
                 if (null == client) {
@@ -81,6 +82,7 @@ public class PushExecuteTask extends AbstractExecuteTask {
     }
     
     private Collection<String> getTargetClientIds() {
+        // pushToAll 是否推送给所有的客户端
         return delayTask.isPushToAll() ? delayTaskEngine.getIndexesManager().getAllClientsSubscribeService(service)
                 : delayTask.getTargetClients();
     }

@@ -16,19 +16,20 @@
 
 package com.alibaba.nacos.common.notify;
 
-import com.alibaba.nacos.common.notify.listener.Subscriber;
-import com.alibaba.nacos.common.utils.CollectionUtils;
-import com.alibaba.nacos.common.utils.ConcurrentHashSet;
-import com.alibaba.nacos.common.utils.ThreadUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.alibaba.nacos.common.notify.NotifyCenter.ringBufferSize;
 
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
-import static com.alibaba.nacos.common.notify.NotifyCenter.ringBufferSize;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alibaba.nacos.common.notify.listener.Subscriber;
+import com.alibaba.nacos.common.utils.CollectionUtils;
+import com.alibaba.nacos.common.utils.ConcurrentHashSet;
+import com.alibaba.nacos.common.utils.ThreadUtils;
 
 /**
  * The default event publisher implementation.
@@ -102,12 +103,14 @@ public class DefaultPublisher extends Thread implements EventPublisher {
             int waitTimes = 60;
             // To ensure that messages are not lost, enable EventHandler when
             // waiting for the first Subscriber to register
+            // 为了保证消息不丢失，需要事件订阅者就绪，所以这里需要等待一会，否则消息会被丢弃
             while (!shutdown && !hasSubscriber() && waitTimes > 0) {
                 ThreadUtils.sleep(1000L);
                 waitTimes--;
             }
 
             while (!shutdown) {
+                // 从队列中取出事件（阻塞等待），订阅者（subscribers）处理事件
                 final Event event = queue.take();
                 receiveEvent(event);
                 UPDATER.compareAndSet(this, lastEventSequence, Math.max(lastEventSequence, event.sequence()));
@@ -135,6 +138,7 @@ public class DefaultPublisher extends Thread implements EventPublisher {
     public boolean publish(Event event) {
         checkIsStart();
         boolean success = this.queue.offer(event);
+        // 添加失败，立刻执行
         if (!success) {
             LOGGER.warn("Unable to plug in due to interruption, synchronize sending time, event : {}", event);
             receiveEvent(event);

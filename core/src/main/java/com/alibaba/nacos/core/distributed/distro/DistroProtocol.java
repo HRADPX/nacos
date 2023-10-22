@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.core.distributed.distro;
 
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.consistency.DataOperation;
 import com.alibaba.nacos.core.cluster.Member;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
@@ -33,10 +35,11 @@ import com.alibaba.nacos.core.distributed.distro.task.verify.DistroVerifyTimedTa
 import com.alibaba.nacos.core.utils.GlobalExecutor;
 import com.alibaba.nacos.core.utils.Loggers;
 import com.alibaba.nacos.sys.env.EnvUtil;
-import org.springframework.stereotype.Component;
 
 /**
  * Distro protocol.
+ *
+ * 文档：https://www.yuque.com/nacos/ebook/agxdnq
  *
  * @author xiweng.yy
  */
@@ -101,6 +104,7 @@ public class DistroProtocol {
      * @param action    the action of data operation
      */
     public void sync(DistroKey distroKey, DataOperation action) {
+        // DistroConfig.getInstance().getSyncDelayMillis() = 1000L
         sync(distroKey, action, DistroConfig.getInstance().getSyncDelayMillis());
     }
     

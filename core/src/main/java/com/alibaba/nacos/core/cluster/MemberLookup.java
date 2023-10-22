@@ -16,14 +16,16 @@
 
 package com.alibaba.nacos.core.cluster;
 
-import com.alibaba.nacos.api.exception.NacosException;
-
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
+import com.alibaba.nacos.api.exception.NacosException;
+
 /**
  * Member node addressing mode.
+ *
+ * Nacos 寻址抽象接口，用于感知集群节点的变化
  *
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
@@ -45,6 +47,7 @@ public interface MemberLookup {
     
     /**
      * Inject the ServerMemberManager property.
+     * 将 ServerMemberManager 注入到 MemberLookUp 中，方便使用 ServerMemberManager 的存储、查询能力
      *
      * @param memberManager {@link ServerMemberManager}
      */
@@ -52,6 +55,8 @@ public interface MemberLookup {
     
     /**
      * The addressing pattern finds cluster nodes.
+     * 事件接口，当前 MemberLookUp 需要进行成员节点更新时，会将最新的成员节点列表信息通过方法进行通知给 ServerMemberManager，
+     * 具体的节点管理方法由具体的实现。
      *
      * @param members {@link Collection}
      */

@@ -16,10 +16,28 @@
 
 package com.alibaba.nacos.core.cluster;
 
+import static com.alibaba.nacos.api.exception.NacosException.CLIENT_INVALID_PARAM;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentSkipListMap;
+
+import javax.annotation.PreDestroy;
+import javax.servlet.ServletContext;
+
+import org.springframework.boot.web.context.WebServerInitializedEvent;
+import org.springframework.context.ApplicationListener;
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.api.ability.ServerAbilities;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.remote.response.ResponseCode;
-import com.alibaba.nacos.core.cluster.remote.request.MemberReportRequest;
 import com.alibaba.nacos.auth.util.AuthHeaderUtil;
 import com.alibaba.nacos.common.JustForTest;
 import com.alibaba.nacos.common.http.Callback;
@@ -41,6 +59,7 @@ import com.alibaba.nacos.core.ability.ServerAbilityInitializer;
 import com.alibaba.nacos.core.ability.ServerAbilityInitializerHolder;
 import com.alibaba.nacos.core.cluster.lookup.LookupFactory;
 import com.alibaba.nacos.core.cluster.remote.ClusterRpcClientProxy;
+import com.alibaba.nacos.core.cluster.remote.request.MemberReportRequest;
 import com.alibaba.nacos.core.cluster.remote.response.MemberReportResponse;
 import com.alibaba.nacos.core.utils.Commons;
 import com.alibaba.nacos.core.utils.GenericType;
@@ -50,39 +69,42 @@ import com.alibaba.nacos.sys.env.Constants;
 import com.alibaba.nacos.sys.env.EnvUtil;
 import com.alibaba.nacos.sys.utils.ApplicationUtils;
 import com.alibaba.nacos.sys.utils.InetUtils;
-import org.springframework.boot.web.context.WebServerInitializedEvent;
-import org.springframework.context.ApplicationListener;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.PreDestroy;
-import javax.servlet.ServletContext;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentSkipListMap;
-
-import static com.alibaba.nacos.api.exception.NacosException.CLIENT_INVALID_PARAM;
 
 /**
  * Cluster node management in Nacos.
  *
- * <p>{@link ServerMemberManager#init()} Cluster node manager initialization {@link ServerMemberManager#shutdown()} The
- * cluster node manager is down {@link ServerMemberManager#getSelf()} Gets local node information {@link
- * ServerMemberManager#getServerList()} Gets the cluster node dictionary {@link ServerMemberManager#getMemberAddressInfos()}
- * Gets the address information of the healthy member node {@link ServerMemberManager#allMembers()} Gets a list of
- * member information objects {@link ServerMemberManager#allMembersWithoutSelf()} Gets a list of cluster member nodes
- * with the exception of this node {@link ServerMemberManager#hasMember(String)} Is there a node {@link
- * ServerMemberManager#memberChange(Collection)} The final node list changes the method, making the full size more
- * {@link ServerMemberManager#memberJoin(Collection)} Node join, can automatically trigger {@link
- * ServerMemberManager#memberLeave(Collection)} When the node leaves, only the interface call can be manually triggered
- * {@link ServerMemberManager#update(Member)} Update the target node information {@link
- * ServerMemberManager#isUnHealth(String)} Whether the target node is healthy {@link
- * ServerMemberManager#initAndStartLookup()} Initializes the addressing mode
+ * <p>
+ * {@link ServerMemberManager#init()} Cluster node manager initialization
+ *   集群节点管理器初始化
+ * {@link ServerMemberManager#shutdown()} The cluster node manager is down
+ *   集群节点管理器下线
+ * {@link ServerMemberManager#getSelf()} Gets local node information
+ *   获取当前节点信息
+ * {@link ServerMemberManager#getServerList()} Gets the cluster node dictionary
+ *   获取集群所有节点信息
+ * {@link ServerMemberManager#getMemberAddressInfos()} Gets the address information of the healthy member node
+ *   获取集群所有在线节点的地址信息（ip:port）
+ * {@link ServerMemberManager#allMembers()} Gets a list of member information objects
+ *   获取集群所有节点信息，和 getServerList() 不同是，此方法返回的是 {@link List}
+ * {@link ServerMemberManager#allMembersWithoutSelf()} Gets a list of cluster member nodes with the exception of this node
+ *   获取集群所有节点信息，不包含当前节点
+ * {@link ServerMemberManager#hasMember(String)} Is there a node
+ *   判断是否存在某个节点
+ * {@link ServerMemberManager#memberChange(Collection)} The final node list changes the method, making the full size more
+ *   集群节点成员发生变化（加入或离开），是集群成员发生变化的最后调用的方法
+ * {@link ServerMemberManager#memberJoin(Collection)} Node join, can automatically trigger
+ *   节点加入集群，可以自动触发，如何自动触发？最终调用 memberChange 方法
+ * {@link ServerMemberManager#memberLeave(Collection)} When the node leaves, only the interface call can be manually triggered
+ *   节点离开集群，最终调用 memberChange 方法
+ * {@link ServerMemberManager#update(Member)} Update the target node information
+ *   更新节点
+ * {@link ServerMemberManager#isUnHealth(String)} Whether the target node is healthy
+ *   判断节点是否健康（在线）状态
+ * {@link ServerMemberManager#initAndStartLookup()} Initializes the addressing mode
+ *   开启 LookUp 的初始化方法，暂时不知道干嘛的
+ *
+ * 该类还实现了{@link ApplicationListener}, 监听 {@link WebServerInitializedEvent} 事件，Spring 容器完成刷新后发布事件，
+ * 设置当前节点信息（节点状态、ip和端口），如果是非单机启动，会同步当前节点信息给集群其他节点。
  *
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
@@ -128,6 +150,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     
     /**
      * Addressing pattern instances.
+     * 维护寻址实例，方便进行动态切换成员节点的寻址方式
+     * @see #switchLookup(String)
      */
     private MemberLookup lookup;
     
@@ -138,6 +162,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     
     /**
      * here is always the node information of the "UP" state.
+     * 存储当前节点所知的所有节点列表信息
      */
     private volatile Set<String> memberAddressInfos = new ConcurrentHashSet<>();
     
@@ -168,6 +193,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         registerClusterEvent();
         
         // Initializes the lookup mode
+        // 初始化寻址
         initAndStartLookup();
         
         if (serverList.isEmpty()) {
@@ -257,13 +283,16 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         
         serverList.computeIfPresent(address, (s, member) -> {
             if (NodeState.DOWN.equals(newMember.getState())) {
+                // 下线
                 memberAddressInfos.remove(newMember.getAddress());
             }
+            // 判断基本数据是否改变，如果发生变化，向集群所有节点发送节点变更
             boolean isPublishChangeEvent = MemberUtil.isBasicInfoChanged(newMember, member);
             newMember.setExtendVal(MemberMetaDataConstants.LAST_REFRESH_TIME, System.currentTimeMillis());
             MemberUtil.copy(newMember, member);
             if (isPublishChangeEvent) {
                 // member basic data changes and all listeners need to be notified
+                // 发送变更事件
                 notifyMemberChange(member);
             }
             return member;
@@ -459,11 +488,17 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             // fix#issue https://github.com/alibaba/nacos/issues/7230
             return;
         }
+        // 当前节点设置上线状态
         getSelf().setState(NodeState.UP);
         if (!EnvUtil.getStandaloneMode()) {
+            // 同步当前节点信息给集群其他节点
+            // 最终执行 MemberInfoReportTask.executeBody 方法
+            // MemberInfoReportTask 实现 Task，重写了 after 方法，实际上是一个定时调度任务，每隔 2s 执行一次
             GlobalExecutor.scheduleByCommon(this.infoReportTask, DEFAULT_TASK_DELAY_TIME);
         }
+        // 端口
         EnvUtil.setPort(event.getWebServer().getPort());
+        // ip+端口
         EnvUtil.setLocalAddress(this.localAddress);
         Loggers.CLUSTER.info("This node is ready to provide external services");
     }
@@ -527,7 +562,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             if (members.isEmpty()) {
                 return;
             }
-            
+
+            // 轮询的方式，每次只对一个节点进行同步信息
             this.cursor = (this.cursor + 1) % members.size();
             Member target = members.get(cursor);
             
@@ -589,7 +625,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                         new NacosException(CLIENT_INVALID_PARAM, "No rpc client related to member: " + target));
                 return;
             }
-            
+
+            // 封装请求 MemberReportRequest  --> MemberReportHandler
             MemberReportRequest memberReportRequest = new MemberReportRequest(getSelf());
             
             try {

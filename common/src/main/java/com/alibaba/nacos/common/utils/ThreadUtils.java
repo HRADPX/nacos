@@ -16,12 +16,12 @@
 
 package com.alibaba.nacos.common.utils;
 
-import org.slf4j.Logger;
-
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
 
 /**
  * Thread utils.

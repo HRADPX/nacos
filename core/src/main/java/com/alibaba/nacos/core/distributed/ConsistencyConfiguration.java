@@ -16,16 +16,17 @@
 
 package com.alibaba.nacos.core.distributed;
 
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.concurrent.Callable;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
 import com.alibaba.nacos.common.spi.NacosServiceLoader;
 import com.alibaba.nacos.consistency.cp.CPProtocol;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.distributed.raft.JRaftProtocol;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.concurrent.Callable;
 
 /**
  * consistency configuration.
@@ -42,6 +43,7 @@ public class ConsistencyConfiguration {
     }
     
     private <T> T getProtocol(Class<T> cls, Callable<T> builder) throws Exception {
+        // SPI
         Collection<T> protocols = NacosServiceLoader.load(cls);
         
         // Select only the first implementation

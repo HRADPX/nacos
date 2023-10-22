@@ -18,6 +18,8 @@
 
 package com.alibaba.nacos.core.cluster.remote;
 
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.remote.request.RequestMeta;
 import com.alibaba.nacos.common.utils.LoggerUtils;
@@ -28,7 +30,6 @@ import com.alibaba.nacos.core.cluster.remote.request.MemberReportRequest;
 import com.alibaba.nacos.core.cluster.remote.response.MemberReportResponse;
 import com.alibaba.nacos.core.remote.RequestHandler;
 import com.alibaba.nacos.core.utils.Loggers;
-import org.springframework.stereotype.Component;
 
 /**
  * MemberReportHandler.
@@ -55,6 +56,7 @@ public class MemberReportHandler extends RequestHandler<MemberReportRequest, Mem
         LoggerUtils.printIfDebugEnabled(Loggers.CLUSTER, "node state report, receive info : {}", node);
         node.setState(NodeState.UP);
         node.setFailAccessCnt(0);
+        // 更新节点
         memberManager.update(node);
         return new MemberReportResponse(memberManager.getSelf());
     }

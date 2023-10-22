@@ -48,7 +48,9 @@ public class RedoScheduledTask extends AbstractExecuteTask {
             return;
         }
         try {
+            // 注册任务
             redoForInstances();
+            // 订阅任务
             redoForSubscribes();
         } catch (Exception e) {
             LogUtils.NAMING_LOGGER.warn("Redo task run with unexpected exception: ", e);
@@ -56,6 +58,8 @@ public class RedoScheduledTask extends AbstractExecuteTask {
     }
     
     private void redoForInstances() {
+        // 从已注册的实例列表（registeredInstances）里选择需要重新执行的实例
+        // 重新注册条件：registered = false && unregistering = false
         for (InstanceRedoData each : redoService.findInstanceRedoData()) {
             try {
                 redoForInstance(each);

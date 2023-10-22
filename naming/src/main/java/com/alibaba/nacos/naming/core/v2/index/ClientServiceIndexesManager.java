@@ -16,6 +16,15 @@
 
 package com.alibaba.nacos.naming.core.v2.index;
 
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.common.notify.Event;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.notify.listener.SmartSubscriber;
@@ -29,14 +38,6 @@ import com.alibaba.nacos.naming.core.v2.event.publisher.NamingEventPublisherFact
 import com.alibaba.nacos.naming.core.v2.event.service.ServiceEvent;
 import com.alibaba.nacos.naming.core.v2.pojo.InstancePublishInfo;
 import com.alibaba.nacos.naming.core.v2.pojo.Service;
-import org.springframework.stereotype.Component;
-
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * Client and service index manager.
@@ -45,9 +46,16 @@ import java.util.concurrent.ConcurrentMap;
  */
 @Component
 public class ClientServiceIndexesManager extends SmartSubscriber {
-    
+
+    // 服务的注册列表
+    // 这个数据结构就是 Nacos 2.x 的核心注册表，与拆分多个数据结构是为了避免 1.x 只有一个数据结构的读写并发
+    // 客户端启动发起注册请求时，通过 ClientRegisterServiceEvent 事件向该 Map 写入服务（Service）和所有注册的客户端id（clientId） 的映射
+    // 入口：NacosAutoServiceRegistration#onApplicationEvent
     private final ConcurrentMap<Service, Set<String>> publisherIndexes = new ConcurrentHashMap<>();
-    
+
+    // 服务的订阅列表
+    // 客户端启动发起订阅请求时，向该 Map 保存服务（Service）和订阅者的 clientId 的映射
+    // 入口：NacosWatch#start
     private final ConcurrentMap<Service, Set<String>> subscriberIndexes = new ConcurrentHashMap<>();
     
     public ClientServiceIndexesManager() {
@@ -80,6 +88,7 @@ public class ClientServiceIndexesManager extends SmartSubscriber {
     @Override
     public List<Class<? extends Event>> subscribeTypes() {
         List<Class<? extends Event>> result = new LinkedList<>();
+        // 这4个事件后续会公用一个队列，因为 NamingEventPublisherFactory#publisher 的 key 使用的是 eventType.getEnclosingClass()
         result.add(ClientOperationEvent.ClientRegisterServiceEvent.class);
         result.add(ClientOperationEvent.ClientDeregisterServiceEvent.class);
         result.add(ClientOperationEvent.ClientSubscribeServiceEvent.class);
@@ -127,7 +136,8 @@ public class ClientServiceIndexesManager extends SmartSubscriber {
             removeSubscriberIndexes(service, clientId);
         }
     }
-    
+
+    // EphemeralClientOperationServiceImpl#registerInstance -> publishEvent(ClientRegisterServiceEvent)
     private void addPublisherIndexes(Service service, String clientId) {
         publisherIndexes.computeIfAbsent(service, key -> new ConcurrentHashSet<>());
         publisherIndexes.get(service).add(clientId);

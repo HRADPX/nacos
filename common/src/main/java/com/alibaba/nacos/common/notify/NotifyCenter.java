@@ -16,16 +16,7 @@
 
 package com.alibaba.nacos.common.notify;
 
-import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
-import com.alibaba.nacos.common.JustForTest;
-import com.alibaba.nacos.common.notify.listener.SmartSubscriber;
-import com.alibaba.nacos.common.notify.listener.Subscriber;
-import com.alibaba.nacos.common.spi.NacosServiceLoader;
-import com.alibaba.nacos.common.utils.ClassUtils;
-import com.alibaba.nacos.common.utils.MapUtil;
-import com.alibaba.nacos.common.utils.ThreadUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import static com.alibaba.nacos.api.exception.NacosException.SERVER_ERROR;
 
 import java.util.Collection;
 import java.util.Iterator;
@@ -34,7 +25,17 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static com.alibaba.nacos.api.exception.NacosException.SERVER_ERROR;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.alibaba.nacos.api.exception.runtime.NacosRuntimeException;
+import com.alibaba.nacos.common.JustForTest;
+import com.alibaba.nacos.common.notify.listener.SmartSubscriber;
+import com.alibaba.nacos.common.notify.listener.Subscriber;
+import com.alibaba.nacos.common.spi.NacosServiceLoader;
+import com.alibaba.nacos.common.utils.ClassUtils;
+import com.alibaba.nacos.common.utils.MapUtil;
+import com.alibaba.nacos.common.utils.ThreadUtils;
 
 /**
  * Unified Event Notify Center.
@@ -187,6 +188,7 @@ public class NotifyCenter {
         }
         
         final Class<? extends Event> subscribeType = consumer.subscribeType();
+        // SlowEvent
         if (ClassUtils.isAssignableFrom(SlowEvent.class, subscribeType)) {
             INSTANCE.sharePublisher.addSubscriber(consumer, subscribeType);
             return;
@@ -214,6 +216,7 @@ public class NotifyCenter {
         if (publisher instanceof ShardedEventPublisher) {
             ((ShardedEventPublisher) publisher).addSubscriber(consumer, subscribeType);
         } else {
+            // 添加订阅者到 EventPublisher 中
             publisher.addSubscriber(consumer);
         }
     }
@@ -294,11 +297,13 @@ public class NotifyCenter {
         if (ClassUtils.isAssignableFrom(SlowEvent.class, eventType)) {
             return INSTANCE.sharePublisher.publish(event);
         }
-        
+
         final String topic = ClassUtils.getCanonicalName(eventType);
-        
+
+        // key: 事件的全路径类名
         EventPublisher publisher = INSTANCE.publisherMap.get(topic);
         if (publisher != null) {
+            // 存储到 EventPublisher 的队列中
             return publisher.publish(event);
         }
         if (event.isPluginEvent()) {
@@ -340,7 +345,8 @@ public class NotifyCenter {
         if (ClassUtils.isAssignableFrom(SlowEvent.class, eventType)) {
             return INSTANCE.sharePublisher;
         }
-        
+
+        // className
         final String topic = ClassUtils.getCanonicalName(eventType);
         synchronized (NotifyCenter.class) {
             // MapUtils.computeIfAbsent is a unsafe method.

@@ -16,8 +16,8 @@
 
 package com.alibaba.nacos.core.code;
 
-import com.alibaba.nacos.common.spi.NacosServiceLoader;
-import com.alibaba.nacos.core.listener.NacosApplicationListener;
+import java.util.Collection;
+
 import org.springframework.boot.ConfigurableBootstrapContext;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.event.EventPublishingRunListener;
@@ -25,7 +25,8 @@ import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 
-import java.util.Collection;
+import com.alibaba.nacos.common.spi.NacosServiceLoader;
+import com.alibaba.nacos.core.listener.NacosApplicationListener;
 
 /**
  * {@link org.springframework.boot.SpringApplicationRunListener} before {@link EventPublishingRunListener} execution.

@@ -16,19 +16,20 @@
 
 package com.alibaba.nacos.common.task.engine;
 
-import com.alibaba.nacos.api.exception.NacosException;
-import com.alibaba.nacos.common.executor.ExecutorFactory;
-import com.alibaba.nacos.common.executor.NameThreadFactory;
-import com.alibaba.nacos.common.task.AbstractDelayTask;
-import com.alibaba.nacos.common.task.NacosTaskProcessor;
-import org.slf4j.Logger;
-
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReentrantLock;
+
+import org.slf4j.Logger;
+
+import com.alibaba.nacos.api.exception.NacosException;
+import com.alibaba.nacos.common.executor.ExecutorFactory;
+import com.alibaba.nacos.common.executor.NameThreadFactory;
+import com.alibaba.nacos.common.task.AbstractDelayTask;
+import com.alibaba.nacos.common.task.NacosTaskProcessor;
 
 /**
  * Nacos delay task execute engine.
@@ -58,11 +59,14 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
     public NacosDelayTaskExecuteEngine(String name, int initCapacity, Logger logger) {
         this(name, initCapacity, logger, 100L);
     }
-    
+
+    // NamingSubscriberServiceV2Impl
     public NacosDelayTaskExecuteEngine(String name, int initCapacity, Logger logger, long processInterval) {
         super(logger);
         tasks = new ConcurrentHashMap<>(initCapacity);
         processingExecutor = ExecutorFactory.newSingleScheduledExecutorService(new NameThreadFactory(name));
+        // 定时调度任务，从 tasks 里获取 AbstractDelayTask 并处理
+        // 这个定时任务由 NamingSubscriberServiceV2Impl 这个 bean 实例化后开始调度
         processingExecutor
                 .scheduleWithFixedDelay(new ProcessRunnable(), processInterval, processInterval, TimeUnit.MILLISECONDS);
     }
@@ -128,7 +132,7 @@ public class NacosDelayTaskExecuteEngine extends AbstractNacosTaskExecuteEngine<
             if (null != existTask) {
                 newTask.merge(existTask);
             }
-            tasks.put(key, newTask);
+            tasks.put(key, newTask);  // 这里添加到 tasks 中，在 processorTasks 中处理这些 task
         } finally {
             lock.unlock();
         }

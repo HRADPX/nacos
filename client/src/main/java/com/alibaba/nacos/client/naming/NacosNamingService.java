@@ -16,6 +16,12 @@
 
 package com.alibaba.nacos.client.naming;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Properties;
+import java.util.UUID;
+
 import com.alibaba.nacos.api.PropertyKeyConst;
 import com.alibaba.nacos.api.common.Constants;
 import com.alibaba.nacos.api.exception.NacosException;
@@ -39,12 +45,6 @@ import com.alibaba.nacos.client.naming.utils.UtilAndComs;
 import com.alibaba.nacos.client.utils.ValidatorUtils;
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.utils.StringUtils;
-
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
-import java.util.UUID;
 
 /**
  * Nacos Naming Service.
@@ -80,7 +80,11 @@ public class NacosNamingService implements NamingService {
         properties.setProperty(PropertyKeyConst.SERVER_ADDR, serverList);
         init(properties);
     }
-    
+
+    /**
+     * 客户端通过反射创建
+     * @see com.alibaba.nacos.api.NacosFactory#createConfigService(Properties)
+     */
     public NacosNamingService(Properties properties) throws NacosException {
         init(properties);
     }
@@ -96,9 +100,12 @@ public class NacosNamingService implements NamingService {
     
         this.notifierEventScope = UUID.randomUUID().toString();
         this.changeNotifier = new InstancesChangeNotifier(this.notifierEventScope);
+        // 注册实例变更事件发布者
         NotifyCenter.registerToPublisher(InstancesChangeEvent.class, 16384);
+        // 注册实例变更事件订阅者
         NotifyCenter.registerSubscriber(changeNotifier);
         this.serviceInfoHolder = new ServiceInfoHolder(namespace, this.notifierEventScope, nacosClientProperties);
+        // 客户端代理，内部包含 httpClient 和 grpcClient 两种实现，客户端会根据 ephemeral 决定使用哪个实现（2.x 版本默认使用 grpc）
         this.clientProxy = new NamingClientProxyDelegate(this.namespace, serviceInfoHolder, nacosClientProperties, changeNotifier);
     }
     
@@ -401,6 +408,7 @@ public class NacosNamingService implements NamingService {
             return;
         }
         String clusterString = StringUtils.join(clusters, ",");
+        // 注册监听器，存储到 Map 中
         changeNotifier.registerListener(groupName, serviceName, clusterString, listener);
         clientProxy.subscribe(serviceName, groupName, clusterString);
     }

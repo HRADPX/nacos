@@ -16,6 +16,16 @@
 
 package com.alibaba.nacos.core.distributed;
 
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.Objects;
+import java.util.Set;
+
+import javax.annotation.PreDestroy;
+
+import org.springframework.beans.factory.DisposableBean;
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.consistency.Config;
 import com.alibaba.nacos.consistency.ap.APProtocol;
@@ -28,14 +38,6 @@ import com.alibaba.nacos.core.cluster.MembersChangeEvent;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.utils.ClassUtils;
 import com.alibaba.nacos.sys.utils.ApplicationUtils;
-import org.springframework.beans.factory.DisposableBean;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.PreDestroy;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.Objects;
-import java.util.Set;
 
 /**
  * Conformance protocol management, responsible for managing the lifecycle of conformance protocols in Nacos.
@@ -45,7 +47,8 @@ import java.util.Set;
 @SuppressWarnings("all")
 @Component(value = "ProtocolManager")
 public class ProtocolManager extends MemberChangeListener implements DisposableBean {
-    
+
+    // todo huangran 这两个协议是怎么初始化的
     private CPProtocol cpProtocol;
     
     private APProtocol apProtocol;
@@ -154,6 +157,7 @@ public class ProtocolManager extends MemberChangeListener implements DisposableB
         // and we use a single thread pool to inform the consistency layer of node changes,
         // to avoid multiple tasks simultaneously carrying out the consistency layer of
         // node changes operation
+        // 节点变更事件在不同的协议实现之间不应该相互阻塞，所有这里使用了两个独立的线程池处理节点变更事件
         if (Objects.nonNull(apProtocol)) {
             ProtocolExecutor.apMemberChange(() -> apProtocol.memberChange(toAPMembersInfo(event.getMembers())));
         }

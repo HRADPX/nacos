@@ -16,15 +16,17 @@
 
 package com.alibaba.nacos.core.cluster.lookup;
 
+import java.util.Collections;
+
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.core.cluster.AbstractMemberLookup;
 import com.alibaba.nacos.core.cluster.MemberUtil;
 import com.alibaba.nacos.sys.env.EnvUtil;
 
-import java.util.Collections;
-
 /**
  * Member node addressing mode in stand-alone mode.
+ *
+ * 单机寻址
  *
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
@@ -32,6 +34,7 @@ public class StandaloneMemberLookup extends AbstractMemberLookup {
     
     @Override
     public void doStart() {
+        // 根据 ip:port 组合信息，解析包装成 Member 对象，添加到 ServerMemberManager 中
         String url = EnvUtil.getLocalAddress();
         afterLookup(MemberUtil.readServerConf(Collections.singletonList(url)));
     }

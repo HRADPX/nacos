@@ -16,6 +16,18 @@
 
 package com.alibaba.nacos.client.naming.cache;
 
+import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+
 import com.alibaba.nacos.api.PropertyKeyConst;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.naming.pojo.Instance;
@@ -30,18 +42,6 @@ import com.alibaba.nacos.common.notify.NotifyCenter;
 import com.alibaba.nacos.common.utils.ConvertUtils;
 import com.alibaba.nacos.common.utils.JacksonUtils;
 import com.alibaba.nacos.common.utils.StringUtils;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-
-import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
 
 /**
  * Naming client service information holder.
@@ -148,6 +148,14 @@ public class ServiceInfoHolder implements Closeable {
      *
      * @param serviceInfo new service info
      * @return service info
+     *
+     * {
+     * 客户端启动发起注册请求
+     * --> 服务端处理注册请求 InstanceRequestHandler#handle
+     * --> 发布 ClientRegisterServiceEvent
+     * --> ClientServiceIndexesManager 处理事件后，发布 ServiceChangedEvent 事件
+     * --> NamingSubscriberServiceV2Impl 处理事件，发送异步请求出来实例信息变更
+     * }
      */
     public ServiceInfo processServiceInfo(ServiceInfo serviceInfo) {
         String serviceKey = serviceInfo.getKey();
@@ -160,6 +168,7 @@ public class ServiceInfoHolder implements Closeable {
             return oldService;
         }
         serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
+        // 判断是否变化
         boolean changed = isChangedServiceInfo(oldService, serviceInfo);
         if (StringUtils.isBlank(serviceInfo.getJsonFromServer())) {
             serviceInfo.setJsonFromServer(JacksonUtils.toJson(serviceInfo));
@@ -168,6 +177,9 @@ public class ServiceInfoHolder implements Closeable {
         if (changed) {
             NAMING_LOGGER.info("current ips:({}) service: {} -> {}", serviceInfo.ipCount(), serviceInfo.getKey(),
                     JacksonUtils.toJson(serviceInfo.getHosts()));
+            // 发布实例变更事件
+            // 监听器注册：com.alibaba.cloud.nacos.discovery.NacosWatch#start -> NacosNamingService#subscribe
+            // InstancesChangeEvent 事件会被 InstancesChangeNotifier#onEvent 处理
             NotifyCenter.publishEvent(new InstancesChangeEvent(notifierEventScope, serviceInfo.getName(), serviceInfo.getGroupName(),
                     serviceInfo.getClusters(), serviceInfo.getHosts()));
             DiskCache.write(serviceInfo, cacheDir);
