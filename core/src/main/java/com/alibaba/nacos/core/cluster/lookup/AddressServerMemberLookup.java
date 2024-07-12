@@ -145,6 +145,7 @@ public class AddressServerMemberLookup extends AbstractMemberLookup {
         int maxRetry = EnvUtil.getProperty(ADDRESS_SERVER_RETRY_PROPERTY, Integer.class, DEFAULT_SERVER_RETRY_TIME);
         for (int i = 0; i < maxRetry; i++) {
             try {
+                //
                 syncFromAddressUrl();
                 success = true;
                 break;
@@ -156,7 +157,8 @@ public class AddressServerMemberLookup extends AbstractMemberLookup {
         if (!success) {
             throw new NacosException(NacosException.SERVER_ERROR, ex);
         }
-        
+
+        // 定时任务
         GlobalExecutor.scheduleByCommon(new AddressServerSyncTask(), DEFAULT_SYNC_TASK_DELAY_MS);
     }
     

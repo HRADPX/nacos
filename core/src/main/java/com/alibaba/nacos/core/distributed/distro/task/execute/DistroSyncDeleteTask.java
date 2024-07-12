@@ -53,8 +53,10 @@ public class DistroSyncDeleteTask extends AbstractDistroExecuteTask {
     @Override
     protected void doExecuteWithCallback(DistroCallback callback) {
         String type = getDistroKey().getResourceType();
+        // No Data
         DistroData distroData = new DistroData();
         distroData.setDistroKey(getDistroKey());
+        // DELETE
         distroData.setType(OPERATION);
         getDistroComponentHolder().findTransportAgent(type)
                 .syncData(distroData, getDistroKey().getTargetServer(), callback);

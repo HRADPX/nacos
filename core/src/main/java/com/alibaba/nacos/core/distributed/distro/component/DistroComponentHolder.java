@@ -16,11 +16,11 @@
 
 package com.alibaba.nacos.core.distributed.distro.component;
 
-import org.springframework.stereotype.Component;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import org.springframework.stereotype.Component;
 
 /**
  * Distro component holder.
@@ -29,9 +29,11 @@ import java.util.Set;
  */
 @Component
 public class DistroComponentHolder {
-    
+
+    // DistroClientComponentRegistry#PostConstruct --> key: DistroClientDataProcessor.TYPE, value: DistroTransportAgent
     private final Map<String, DistroTransportAgent> transportAgentMap = new HashMap<>();
-    
+
+    // DistroClientComponentRegistry#PostConstruct --> key: DistroClientDataProcessor.TYPE, value: DistroClientDataProcessor
     private final Map<String, DistroDataStorage> dataStorageMap = new HashMap<>();
     
     private final Map<String, DistroFailedTaskHandler> failedTaskHandlerMap = new HashMap<>();
@@ -41,7 +43,10 @@ public class DistroComponentHolder {
     public DistroTransportAgent findTransportAgent(String type) {
         return transportAgentMap.get(type);
     }
-    
+
+    /**
+     * @see com.alibaba.nacos.naming.consistency.ephemeral.distro.v2.DistroClientComponentRegistry#doRegister()
+     */
     public void registerTransportAgent(String type, DistroTransportAgent transportAgent) {
         transportAgentMap.put(type, transportAgent);
     }
@@ -49,7 +54,10 @@ public class DistroComponentHolder {
     public DistroDataStorage findDataStorage(String type) {
         return dataStorageMap.get(type);
     }
-    
+
+    /**
+     * @see com.alibaba.nacos.naming.consistency.ephemeral.distro.v2.DistroClientComponentRegistry#doRegister()
+     */
     public void registerDataStorage(String type, DistroDataStorage dataStorage) {
         dataStorageMap.put(type, dataStorage);
     }

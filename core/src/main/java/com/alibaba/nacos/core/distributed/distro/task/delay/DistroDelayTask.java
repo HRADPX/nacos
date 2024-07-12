@@ -28,7 +28,8 @@ import com.alibaba.nacos.core.distributed.distro.entity.DistroKey;
 public class DistroDelayTask extends AbstractDelayTask {
     
     private final DistroKey distroKey;
-    
+
+    // 数据变更类型，删除、修改、新增
     private DataOperation action;
     
     private long createTime;

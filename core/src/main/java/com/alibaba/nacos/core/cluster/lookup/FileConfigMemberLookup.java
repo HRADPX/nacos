@@ -67,11 +67,13 @@ public class FileConfigMemberLookup extends AbstractMemberLookup {
     
     @Override
     public void doStart() throws NacosException {
+        // 从配置文件中读取集群所有的服务节点
         readClusterConfFromDisk();
         
         // Use the inotify mechanism to monitor file changes and automatically
         // trigger the reading of cluster.conf
         try {
+            // 添加一个监听器，监听配置文件的变更，当配置文件内容变更时，会执行 readClusterConfFromDisk 方法来添加/删除集群中的节点
             WatchFileCenter.registerWatcher(EnvUtil.getConfPath(), watcher);
         } catch (Throwable e) {
             Loggers.CLUSTER.error("An exception occurred in the launch file monitor : {}", e.getMessage());

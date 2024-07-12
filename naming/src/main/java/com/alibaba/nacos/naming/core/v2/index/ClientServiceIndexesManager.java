@@ -107,14 +107,19 @@ public class ClientServiceIndexesManager extends SmartSubscriber {
     }
     
     private void handleClientDisconnect(ClientEvent.ClientDisconnectEvent event) {
+        // 断开连接的客户端
         Client client = event.getClient();
+        // 当前客户端的所有订阅者
         for (Service each : client.getAllSubscribeService()) {
+            // 移除当前客户端订阅者的 clientId
             removeSubscriberIndexes(each, client.getClientId());
         }
         DeregisterInstanceReason reason = event.isNative()
                 ? DeregisterInstanceReason.NATIVE_DISCONNECTED : DeregisterInstanceReason.SYNCED_DISCONNECTED;
         long currentTimeMillis = System.currentTimeMillis();
+        // 如果当前客户端也是服务提供者
         for (Service each : client.getAllPublishedService()) {
+            // 移除注册表相关信息
             removePublisherIndexes(each, client.getClientId());
             InstancePublishInfo instance = client.getInstancePublishInfo(each);
             NotifyCenter.publishEvent(new DeregisterInstanceTraceEvent(currentTimeMillis,
@@ -145,8 +150,11 @@ public class ClientServiceIndexesManager extends SmartSubscriber {
     }
     
     private void removePublisherIndexes(Service service, String clientId) {
+        // 如果当前断连的客户端是服务提供者，这个 Map 就有这个连接，需要发布服务变更事件（ServiceChangedEvent）。
+        // 如果当前断连的客户端只是服务订阅者，它不会向这个 Map 里注册，则这里不会有任何的数据变动。
         publisherIndexes.computeIfPresent(service, (s, ids) -> {
             ids.remove(clientId);
+            // 此时 Service 是断开客户端提供的服务
             NotifyCenter.publishEvent(new ServiceEvent.ServiceChangedEvent(service, true));
             return ids.isEmpty() ? null : ids;
         });
@@ -156,6 +164,7 @@ public class ClientServiceIndexesManager extends SmartSubscriber {
         subscriberIndexes.computeIfAbsent(service, key -> new ConcurrentHashSet<>());
         // Fix #5404, Only first time add need notify event.
         if (subscriberIndexes.get(service).add(clientId)) {
+            // 服务订阅事件
             NotifyCenter.publishEvent(new ServiceEvent.ServiceSubscribedEvent(service, clientId));
         }
     }

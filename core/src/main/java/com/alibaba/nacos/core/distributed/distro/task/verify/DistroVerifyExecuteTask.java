@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.core.distributed.distro.task.verify;
 
+import java.util.List;
+
 import com.alibaba.nacos.common.task.AbstractExecuteTask;
 import com.alibaba.nacos.core.distributed.distro.component.DistroCallback;
 import com.alibaba.nacos.core.distributed.distro.component.DistroTransportAgent;
@@ -23,8 +25,6 @@ import com.alibaba.nacos.core.distributed.distro.entity.DistroData;
 import com.alibaba.nacos.core.distributed.distro.monitor.DistroRecord;
 import com.alibaba.nacos.core.distributed.distro.monitor.DistroRecordsHolder;
 import com.alibaba.nacos.core.utils.Loggers;
-
-import java.util.List;
 
 /**
  * Execute distro verify task.
@@ -36,7 +36,8 @@ public class DistroVerifyExecuteTask extends AbstractExecuteTask {
     private final DistroTransportAgent transportAgent;
     
     private final List<DistroData> verifyData;
-    
+
+    // 目标节点
     private final String targetServer;
     
     private final String resourceType;
@@ -51,8 +52,11 @@ public class DistroVerifyExecuteTask extends AbstractExecuteTask {
     
     @Override
     public void run() {
+        // 遍历每个节点数据，发送到对应的节点进行数据比对，主要通过比对版本
+        // 节点每次注册/取消注册新的实例都会更新版本
         for (DistroData each : verifyData) {
             try {
+                // 这里 each 就是目标节点里的一个客户端id
                 if (transportAgent.supportCallbackTransport()) {
                     doSyncVerifyDataWithCallback(each);
                 } else {

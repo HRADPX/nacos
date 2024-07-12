@@ -95,7 +95,9 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
         if (EnvUtil.getStandaloneMode()) {
             return;
         }
+        // 认证失败
         if (event instanceof ClientEvent.ClientVerifyFailedEvent) {
+            // 重新同步认证失败的节点数据到当前节点
             syncToVerifyFailedServer((ClientEvent.ClientVerifyFailedEvent) event);
         } else {
             syncToAllServer((ClientEvent) event);
@@ -103,23 +105,32 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     }
     
     private void syncToVerifyFailedServer(ClientEvent.ClientVerifyFailedEvent event) {
+        // 当前节点的客户端
         Client client = clientManager.getClient(event.getClientId());
         if (null == client || !client.isEphemeral() || !clientManager.isResponsibleClient(client)) {
             return;
         }
         DistroKey distroKey = new DistroKey(client.getClientId(), TYPE);
         // Verify failed data should be sync directly.
+        // 认证失败的数据需要立刻同步
+        // 从当前节点（与 clientId 直连的节点）获取最新的数据，封装请求，发送给需要同步的数据的节点（targetServer）
+        // targetServer 对应的节点收到最新数据后，同步最新的数据到自己的数据中，来保证节点间数据一致（这是一个典型的 cp 模型）
         distroProtocol.syncToTarget(distroKey, DataOperation.ADD, event.getTargetServer(), 0L);
     }
     
     private void syncToAllServer(ClientEvent event) {
         Client client = event.getClient();
         // Only ephemeral data sync by Distro, persist client should sync by raft.
+        // 只有与服务端连接的客户端连接才会响应事件，如果是服务端之间数据同步的连接，不满足
+        // clientManager.isResponsibleClient(client) ，即不会响应事件，避免集群数据同步请求风暴。
         if (null == client || !client.isEphemeral() || !clientManager.isResponsibleClient(client)) {
             return;
         }
         if (event instanceof ClientEvent.ClientDisconnectEvent) {
             DistroKey distroKey = new DistroKey(client.getClientId(), TYPE);
+            // 这里用了延迟调度引擎进行调度，链路比较长，最终的 处理逻辑是 DistroDelayTaskProcessor#process，
+            // 封装 DistroDataRequest 请求并通过 grpc 发送给集群的其他服务节点，DistroDataRequestHandler
+            // 处理请求，最终调用该类的 processData() 方法，将下线的客户端的相关信息移除。
             distroProtocol.sync(distroKey, DataOperation.DELETE);
         } else if (event instanceof ClientEvent.ClientChangedEvent) {
             // 数据同步
@@ -156,18 +167,28 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
         Loggers.DISTRO
                 .info("[Client-Add] Received distro client sync data {}, revision={}", clientSyncData.getClientId(),
                         clientSyncData.getAttributes().getClientAttribute(ClientConstants.REVISION, 0L));
+        // 根据 clientId 创建 Client 对象到当前节点的 ClientManager 中，这里调用的是 syncClientConnected 方法，
+        // ConnectionBasedClient 对象的 isNative = false，这样注册的完成后，发送的客户端变更事件（ClientChangedEvent）
+        // 就不会同步给集群了，因为这是同步连接。
+        // @see #onEvent
         clientManager.syncClientConnected(clientSyncData.getClientId(), clientSyncData.getAttributes());
         Client client = clientManager.getClient(clientSyncData.getClientId());
+        // 异步事件机制完成数据注册订阅信息的同步
         upgradeClient(client, clientSyncData);
     }
-    
+
+    /**
+     * @param client 当前服务节点的 client，如果是数据同步的话，可能是空的，如新节点加入集群
+     */
     private void upgradeClient(Client client, ClientSyncData clientSyncData) {
         Set<Service> syncedService = new HashSet<>();
         // process batch instance sync logic
+        // 处理 batch instance 同步逻辑
         processBatchInstanceDistroData(syncedService, client, clientSyncData);
         List<String> namespaces = clientSyncData.getNamespaces();
         List<String> groupNames = clientSyncData.getGroupNames();
         List<String> serviceNames = clientSyncData.getServiceNames();
+        // 所有的客户端实例，内部包含 ip 和端口信息
         List<InstancePublishInfo> instances = clientSyncData.getInstancePublishInfos();
         
         for (int i = 0; i < namespaces.size(); i++) {
@@ -176,11 +197,14 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
             syncedService.add(singleton);
             InstancePublishInfo instancePublishInfo = instances.get(i);
             if (!instancePublishInfo.equals(client.getInstancePublishInfo(singleton))) {
+                // 加 client
                 client.addServiceInstance(singleton, instancePublishInfo);
+                // 后续逻辑同注册逻辑，唯一不同的是注册完成后不会向集群其他节点同步了...
                 NotifyCenter.publishEvent(
                         new ClientOperationEvent.ClientRegisterServiceEvent(singleton, client.getClientId()));
             }
         }
+        // 移除已经下线的服务
         for (Service each : client.getAllPublishedService()) {
             if (!syncedService.contains(each)) {
                 client.removeServiceInstance(each);
@@ -236,8 +260,10 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     
     @Override
     public boolean processSnapshot(DistroData distroData) {
+        // 反序列化响应数据
         ClientSyncDatumSnapshot snapshot = ApplicationUtils.getBean(Serializer.class)
                 .deserialize(distroData.getContent(), ClientSyncDatumSnapshot.class);
+        // 包含了所有的客户端连接
         for (ClientSyncData each : snapshot.getClientSyncDataList()) {
             handlerClientSyncData(each);
         }
@@ -257,16 +283,19 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
     @Override
     public DistroData getDatumSnapshot() {
         List<ClientSyncData> datum = new LinkedList<>();
+        // clientManager 保存了所有客户端连接
         for (String each : clientManager.allClientId()) {
             Client client = clientManager.getClient(each);
             if (null == client || !client.isEphemeral()) {
                 continue;
             }
+            // 构造快照数据，只是 ClientManager 里的数据，不含注册的表的信息
             datum.add(client.generateSyncData());
         }
         ClientSyncDatumSnapshot snapshot = new ClientSyncDatumSnapshot();
         snapshot.setClientSyncDataList(datum);
         byte[] data = ApplicationUtils.getBean(Serializer.class).serialize(snapshot);
+        // 封装结果
         return new DistroData(new DistroKey(DataOperation.SNAPSHOT.name(), TYPE), data);
     }
     
@@ -278,6 +307,7 @@ public class DistroClientDataProcessor extends SmartSubscriber implements Distro
             if (null == client || !client.isEphemeral()) {
                 continue;
             }
+            // 这里的判断是看当前的客户端连接是不是与客户端直连的连接（当前节点负责的连接），如果是同步数据的连接则跳过
             if (clientManager.isResponsibleClient(client)) {
                 DistroClientVerifyInfo verifyData = new DistroClientVerifyInfo(client.getClientId(),
                         client.getRevision());

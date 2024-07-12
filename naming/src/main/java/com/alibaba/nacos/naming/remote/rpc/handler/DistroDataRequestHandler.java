@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.naming.remote.rpc.handler;
 
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.remote.request.RequestMeta;
 import com.alibaba.nacos.api.remote.response.ResponseCode;
@@ -27,7 +29,6 @@ import com.alibaba.nacos.naming.cluster.remote.request.DistroDataRequest;
 import com.alibaba.nacos.naming.cluster.remote.response.DistroDataResponse;
 import com.alibaba.nacos.naming.consistency.ephemeral.distro.v2.DistroClientDataProcessor;
 import com.alibaba.nacos.naming.misc.Loggers;
-import org.springframework.stereotype.Component;
 
 /**
  * Distro data request handler.
@@ -48,7 +49,10 @@ public class DistroDataRequestHandler extends RequestHandler<DistroDataRequest, 
         try {
             switch (request.getDataOperation()) {
                 case VERIFY:
+                // 数据认证，刷新时间
+                // 对比版本是否相同
                     return handleVerify(request.getDistroData(), meta);
+                // 节点数据同步
                 case SNAPSHOT:
                     return handleSnapshot();
                 case ADD:

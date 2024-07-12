@@ -16,16 +16,16 @@
 
 package com.alibaba.nacos.core.cluster.lookup;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.Objects;
+
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.common.utils.StringUtils;
 import com.alibaba.nacos.core.cluster.MemberLookup;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
-import com.alibaba.nacos.sys.env.EnvUtil;
 import com.alibaba.nacos.core.utils.Loggers;
-
-import java.io.File;
-import java.util.Arrays;
-import java.util.Objects;
+import com.alibaba.nacos.sys.env.EnvUtil;
 
 /**
  * An addressing pattern factory, responsible for the creation of all addressing patterns.
@@ -55,6 +55,7 @@ public final class LookupFactory {
             LOOK_UP = find(type);
             currentLookupType = type;
         } else {
+            // 单机寻址
             LOOK_UP = new StandaloneMemberLookup();
         }
         LOOK_UP.injectMemberManager(memberManager);

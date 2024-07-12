@@ -16,6 +16,13 @@
 
 package com.alibaba.nacos.naming.core.v2.client.manager.impl;
 
+import java.util.Collection;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
+
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.api.common.Constants;
 import com.alibaba.nacos.api.remote.RemoteConstants;
 import com.alibaba.nacos.common.notify.NotifyCenter;
@@ -32,12 +39,6 @@ import com.alibaba.nacos.naming.core.v2.client.manager.ClientManager;
 import com.alibaba.nacos.naming.core.v2.event.client.ClientEvent;
 import com.alibaba.nacos.naming.misc.GlobalExecutor;
 import com.alibaba.nacos.naming.misc.Loggers;
-import org.springframework.stereotype.Component;
-
-import java.util.Collection;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.TimeUnit;
 
 /**
  * The manager of {@code ConnectionBasedClient}.
@@ -46,10 +47,13 @@ import java.util.concurrent.TimeUnit;
  */
 @Component("connectionBasedClientManager")
 public class ConnectionBasedClientManager extends ClientConnectionEventListener implements ClientManager {
-    
+
+    // 客户端连接对象，这里保存了向 nacos 注册的客户端也包含了只订阅的客户端对象
+    // 在客户端与服务端建立连接后，创建客户端对象，并保存到 clients 中
     private final ConcurrentMap<String, ConnectionBasedClient> clients = new ConcurrentHashMap<>();
     
     public ConnectionBasedClientManager() {
+        // 开启一个定时任务，检查客户端是否过期，每隔 5s 检测一次，判断上次续约时间是否超过 5min
         GlobalExecutor
                 .scheduleExpiredClientCleaner(new ExpiredClientCleaner(this), 0, Constants.DEFAULT_HEART_BEAT_INTERVAL,
                         TimeUnit.MILLISECONDS);
@@ -72,7 +76,7 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
         ClientFactory clientFactory = ClientFactoryHolder.getInstance().findClientFactory(type);
         return clientConnected(clientFactory.newClient(clientId, attributes));
     }
-    
+
     @Override
     public boolean clientConnected(final Client client) {
         clients.computeIfAbsent(client.getClientId(), s -> {
@@ -105,7 +109,10 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
         NotifyCenter.publishEvent(new ClientEvent.ClientDisconnectEvent(client, isResponsibleClient(client)));
         return true;
     }
-    
+
+    /**
+     * @see com.alibaba.nacos.core.remote.ConnectionManager#register(String, Connection)
+     */
     @Override
     public Client getClient(String clientId) {
         return clients.get(clientId);
@@ -128,13 +135,16 @@ public class ConnectionBasedClientManager extends ClientConnectionEventListener 
     
     @Override
     public boolean verifyClient(DistroClientVerifyInfo verifyData) {
+        // clientId 是当前节点
         ConnectionBasedClient client = clients.get(verifyData.getClientId());
         if (null != client) {
             // remote node of old version will always verify with zero revision
+            // 版本一致，刷新续约时间
             if (0 == verifyData.getRevision() || client.getRevision() == verifyData.getRevision()) {
                 client.setLastRenewTime();
                 return true;
             } else {
+                // 不一致，返回false，后续动作
                 Loggers.DISTRO.info("[DISTRO-VERIFY-FAILED] ConnectionBasedClient[{}] revision local={}, remote={}",
                         client.getClientId(), client.getRevision(), verifyData.getRevision());
             }

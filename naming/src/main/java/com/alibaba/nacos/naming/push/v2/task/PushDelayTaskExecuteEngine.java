@@ -101,6 +101,8 @@ public class PushDelayTaskExecuteEngine extends NacosDelayTaskExecuteEngine {
         public boolean process(NacosTask task) {
             PushDelayTask pushDelayTask = (PushDelayTask) task;
             Service service = pushDelayTask.getService();
+            // 任务分发器，会将任务交给分发器中的某个执行器执行，每个执行器里面都有一个线程和一个队列，任务会被提交到队列中，然后会被线程处理
+            // PushExecuteTask：线程池任务，最终执行 run 方法
             NamingExecuteTaskDispatcher.getInstance()
                     .dispatchAndExecuteTask(service, new PushExecuteTask(service, executeEngine, pushDelayTask));
             return true;

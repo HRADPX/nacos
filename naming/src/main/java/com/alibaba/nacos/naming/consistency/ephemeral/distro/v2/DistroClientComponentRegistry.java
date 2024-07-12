@@ -16,17 +16,19 @@
 
 package com.alibaba.nacos.naming.consistency.ephemeral.distro.v2;
 
+import javax.annotation.PostConstruct;
+
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.cluster.remote.ClusterRpcClientProxy;
 import com.alibaba.nacos.core.distributed.distro.DistroProtocol;
 import com.alibaba.nacos.core.distributed.distro.component.DistroComponentHolder;
 import com.alibaba.nacos.core.distributed.distro.component.DistroTransportAgent;
 import com.alibaba.nacos.core.distributed.distro.task.DistroTaskEngineHolder;
+import com.alibaba.nacos.core.distributed.distro.task.load.DistroLoadDataTask;
 import com.alibaba.nacos.naming.core.v2.client.manager.ClientManager;
 import com.alibaba.nacos.naming.core.v2.client.manager.ClientManagerDelegate;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.PostConstruct;
 
 /**
  * Distro component registry for v2.
@@ -62,6 +64,9 @@ public class DistroClientComponentRegistry {
     /**
      * Register necessary component to distro protocol for v2 {@link com.alibaba.nacos.naming.core.v2.client.Client}
      * implement.
+     *
+     * @see DistroProtocol#distroComponentHolder
+     * @see DistroLoadDataTask#load()
      */
     @PostConstruct
     public void doRegister() {
@@ -69,6 +74,7 @@ public class DistroClientComponentRegistry {
         DistroTransportAgent transportAgent = new DistroClientTransportAgent(clusterRpcClientProxy,
                 serverMemberManager);
         DistroClientTaskFailedHandler taskFailedHandler = new DistroClientTaskFailedHandler(taskEngineHolder);
+        // 注册数据存储结构
         componentHolder.registerDataStorage(DistroClientDataProcessor.TYPE, dataProcessor);
         componentHolder.registerDataProcessor(dataProcessor);
         componentHolder.registerTransportAgent(DistroClientDataProcessor.TYPE, transportAgent);

@@ -59,6 +59,7 @@ public class DistroProtocol {
         this.memberManager = memberManager;
         this.distroComponentHolder = distroComponentHolder;
         this.distroTaskEngineHolder = distroTaskEngineHolder;
+        // 集群模式下，服务节点启动会从其他节点拉取数据同步到当前节点
         startDistroTask();
     }
     
@@ -67,7 +68,9 @@ public class DistroProtocol {
             isInitialized = true;
             return;
         }
+        // 执行数据验证逻辑，定时任务
         startVerifyTask();
+        // 从其他节点拉取数据同步到当前节点，一次性任务，执行成功后停止..
         startLoadTask();
     }
     
@@ -88,6 +91,7 @@ public class DistroProtocol {
     }
     
     private void startVerifyTask() {
+        // 定时调度
         GlobalExecutor.schedulePartitionDataTimedSync(new DistroVerifyTimedTask(memberManager, distroComponentHolder,
                         distroTaskEngineHolder.getExecuteWorkersManager()),
                 DistroConfig.getInstance().getVerifyIntervalMillis());
@@ -116,6 +120,7 @@ public class DistroProtocol {
      * @param delay     delay time for sync
      */
     public void sync(DistroKey distroKey, DataOperation action, long delay) {
+        // 给集群除了该节点的所有的节点同步消息
         for (Member each : memberManager.allMembersWithoutSelf()) {
             syncToTarget(distroKey, action, each.getAddress(), delay);
         }
@@ -174,6 +179,7 @@ public class DistroProtocol {
             Loggers.DISTRO.warn("[DISTRO] Can't find data process for received data {}", resourceType);
             return false;
         }
+        // DistroClientDataProcessor
         return dataProcessor.processData(distroData);
     }
     
@@ -195,6 +201,7 @@ public class DistroProtocol {
             Loggers.DISTRO.warn("[DISTRO] Can't find verify data process for received data {}", resourceType);
             return false;
         }
+        // DistroClientDataProcessor
         return dataProcessor.processVerifyData(distroData, sourceAddress);
     }
     

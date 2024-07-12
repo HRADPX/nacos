@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.core.distributed.distro.task.verify;
 
+import java.util.List;
+
 import com.alibaba.nacos.core.cluster.Member;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.distributed.distro.component.DistroComponentHolder;
@@ -24,8 +26,6 @@ import com.alibaba.nacos.core.distributed.distro.component.DistroTransportAgent;
 import com.alibaba.nacos.core.distributed.distro.entity.DistroData;
 import com.alibaba.nacos.core.distributed.distro.task.execute.DistroExecuteTaskExecuteEngine;
 import com.alibaba.nacos.core.utils.Loggers;
-
-import java.util.List;
 
 /**
  * Timed to start distro verify task.
@@ -54,6 +54,8 @@ public class DistroVerifyTimedTask implements Runnable {
             if (Loggers.DISTRO.isDebugEnabled()) {
                 Loggers.DISTRO.debug("server list is: {}", targetServer);
             }
+            // DistroClientDataProcessor.TYPE
+            // targetServer: 除自身之外的所有其他节点，为了对比当前节点保存的其他节点版本是否和节点的版本一致
             for (String each : distroComponentHolder.getDataStorageTypes()) {
                 verifyForDataStorage(each, targetServer);
             }
@@ -64,15 +66,19 @@ public class DistroVerifyTimedTask implements Runnable {
     
     private void verifyForDataStorage(String type, List<Member> targetServer) {
         DistroDataStorage dataStorage = distroComponentHolder.findDataStorage(type);
+        // 需要先等数据同步（startLoadTask）任务完成，这是通过定时线程池调度的
         if (!dataStorage.isFinishInitial()) {
             Loggers.DISTRO.warn("data storage {} has not finished initial step, do not send verify data",
                     dataStorage.getClass().getSimpleName());
             return;
         }
+        // 当前节点负责的连接，同步数据的连接会被过滤..
+        // 发送给集群除自身的其他节点
         List<DistroData> verifyData = dataStorage.getVerifyData();
         if (null == verifyData || verifyData.isEmpty()) {
             return;
         }
+        // 除自身外的所有服务节点，遍历发送
         for (Member member : targetServer) {
             DistroTransportAgent agent = distroComponentHolder.findTransportAgent(type);
             if (null == agent) {

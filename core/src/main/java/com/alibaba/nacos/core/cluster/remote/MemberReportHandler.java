@@ -47,6 +47,7 @@ public class MemberReportHandler extends RequestHandler<MemberReportRequest, Mem
     
     @Override
     public MemberReportResponse handle(MemberReportRequest request, RequestMeta meta) throws NacosException {
+        // 这个 node 是其他服务节点
         Member node = request.getNode();
         if (!node.check()) {
             MemberReportResponse result = new MemberReportResponse();
@@ -54,10 +55,13 @@ public class MemberReportHandler extends RequestHandler<MemberReportRequest, Mem
             return result;
         }
         LoggerUtils.printIfDebugEnabled(Loggers.CLUSTER, "node state report, receive info : {}", node);
+        // 收到其他节点的请求，表示这个节点是存活的，将节点状态设置为上线状态
         node.setState(NodeState.UP);
+        // 重置失败次数
         node.setFailAccessCnt(0);
-        // 更新节点
+        // 当前节点更新其他节点
         memberManager.update(node);
+        // 将自己返回返回
         return new MemberReportResponse(memberManager.getSelf());
     }
     

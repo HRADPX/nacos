@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.naming.push.v2.executor;
 
+import org.springframework.stereotype.Component;
+
 import com.alibaba.nacos.api.naming.pojo.ServiceInfo;
 import com.alibaba.nacos.api.naming.remote.request.NotifySubscriberRequest;
 import com.alibaba.nacos.core.remote.RpcPushService;
@@ -24,7 +26,6 @@ import com.alibaba.nacos.naming.pojo.Subscriber;
 import com.alibaba.nacos.naming.push.v2.PushDataWrapper;
 import com.alibaba.nacos.naming.push.v2.task.NamingPushCallback;
 import com.alibaba.nacos.naming.utils.ServiceUtil;
-import org.springframework.stereotype.Component;
 
 /**
  * Push execute service for rpc.
@@ -49,8 +50,11 @@ public class PushExecutorRpcImpl implements PushExecutor {
     @Override
     public void doPushWithCallback(String clientId, Subscriber subscriber, PushDataWrapper data,
             NamingPushCallback callBack) {
+        // 当前服务的所有实例列表
         ServiceInfo actualServiceInfo = getServiceInfo(data, subscriber);
         callBack.setActualServiceInfo(actualServiceInfo);
+        // 发送服务实例列表变更给订阅该服务的客户端
+        // 客户端处理逻辑 NamingPushRequestHandler#requestReply
         pushService.pushWithCallback(clientId, NotifySubscriberRequest.buildNotifySubscriberRequest(actualServiceInfo),
                 callBack, GlobalExecutor.getCallbackExecutor());
     }

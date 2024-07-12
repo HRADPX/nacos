@@ -90,6 +90,7 @@ public class ServiceStorage {
     }
 
     // see ServiceStorage#serviceDataIndexes
+    // 获取当前服务的所有实例
     public ServiceInfo getPushData(Service service) {
         ServiceInfo result = emptyServiceInfo(service);
         if (!ServiceManager.getInstance().containSingleton(service)) {
@@ -123,7 +124,7 @@ public class ServiceStorage {
         Set<String> clusters = new HashSet<>();
         // 获取所有的客户端id
         for (String each : serviceIndexesManager.getAllClientsRegisteredService(service)) {
-            // 根据客户端id 获取对应实例信息
+            // 根据客户端id 获取对应实例信息，如果客户端断开了，这里返回为空
             Optional<InstancePublishInfo> instancePublishInfo = getInstanceInfo(each, service);
             if (instancePublishInfo.isPresent()) {
                 InstancePublishInfo publishInfo = instancePublishInfo.get();

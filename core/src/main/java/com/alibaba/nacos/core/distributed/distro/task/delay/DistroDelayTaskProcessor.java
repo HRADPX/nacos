@@ -50,6 +50,8 @@ public class DistroDelayTaskProcessor implements NacosTaskProcessor {
         DistroKey distroKey = distroDelayTask.getDistroKey();
         switch (distroDelayTask.getAction()) {
             case DELETE:
+                // 线程池任务
+                // 同步删除任务
                 DistroSyncDeleteTask syncDeleteTask = new DistroSyncDeleteTask(distroKey, distroComponentHolder);
                 distroTaskEngineHolder.getExecuteWorkersManager().addTask(distroKey, syncDeleteTask);
                 return true;

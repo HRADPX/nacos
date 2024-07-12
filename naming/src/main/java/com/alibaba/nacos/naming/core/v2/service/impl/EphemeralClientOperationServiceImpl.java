@@ -72,6 +72,7 @@ public class EphemeralClientOperationServiceImpl implements ClientOperationServi
         // --> DistroClientDataProcessor#onEvent（同步当前实例信息到其他服务器节点）
         client.addServiceInstance(singleton, instanceInfo);
         client.setLastUpdatedTime();
+        // 更新版本，用于数据认证
         client.recalculateRevision();
         // 发布 ClientRegisterServiceEvent 事件  --> ClientServiceIndexesManager#addPublisherIndexes
         // （将 Service 和 clientId 保存到 publisherIndexes 中，这个事件处理后会发布一个 ServiceChangedEvent 事件）
@@ -122,6 +123,7 @@ public class EphemeralClientOperationServiceImpl implements ClientOperationServi
         }
         InstancePublishInfo removedInstance = client.removeServiceInstance(singleton);
         client.setLastUpdatedTime();
+        // 更新版本
         client.recalculateRevision();
         if (null != removedInstance) {
             NotifyCenter.publishEvent(new ClientOperationEvent.ClientDeregisterServiceEvent(singleton, clientId));

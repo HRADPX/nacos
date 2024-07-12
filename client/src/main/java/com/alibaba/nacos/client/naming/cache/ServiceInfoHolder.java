@@ -167,8 +167,9 @@ public class ServiceInfoHolder implements Closeable {
             //empty or error push, just ignore
             return oldService;
         }
+        // 更新缓存
         serviceInfoMap.put(serviceInfo.getKey(), serviceInfo);
-        // 判断是否变化
+        // 判断是否变化，实例新增、删除、改变（权重、健康状态改变等）
         boolean changed = isChangedServiceInfo(oldService, serviceInfo);
         if (StringUtils.isBlank(serviceInfo.getJsonFromServer())) {
             serviceInfo.setJsonFromServer(JacksonUtils.toJson(serviceInfo));
@@ -182,6 +183,7 @@ public class ServiceInfoHolder implements Closeable {
             // InstancesChangeEvent 事件会被 InstancesChangeNotifier#onEvent 处理
             NotifyCenter.publishEvent(new InstancesChangeEvent(notifierEventScope, serviceInfo.getName(), serviceInfo.getGroupName(),
                     serviceInfo.getClusters(), serviceInfo.getHosts()));
+            // 写磁盘
             DiskCache.write(serviceInfo, cacheDir);
         }
         return serviceInfo;

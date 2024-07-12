@@ -16,6 +16,7 @@
 
 package com.alibaba.nacos.naming.core.v2.client.impl;
 
+import com.alibaba.nacos.core.distributed.distro.DistroProtocol;
 import com.alibaba.nacos.naming.core.v2.client.AbstractClient;
 import com.alibaba.nacos.naming.misc.ClientConfig;
 
@@ -33,11 +34,14 @@ public class ConnectionBasedClient extends AbstractClient {
     /**
      * {@code true} means this client is directly connect to current server. {@code false} means this client is synced
      * from other server.
+     * true 表示该连接连向服务端的客户端连接，客户端与该节点直连，false 表该连接是一个同步服务端数据的客户端连接
      */
     private final boolean isNative;
     
     /**
      * Only has meaning when {@code isNative} is false, which means that the last time verify from source server.
+     * lastRenewTime 用于数据验证，每次完成验证后刷新
+     * @see DistroProtocol#startVerifyTask()
      */
     private volatile long lastRenewTime;
     
@@ -72,6 +76,7 @@ public class ConnectionBasedClient extends AbstractClient {
     
     @Override
     public boolean isExpire(long currentTime) {
+        // 默认 3 分钟
         return !isNative() && currentTime - getLastRenewTime() > ClientConfig.getInstance().getClientExpiredTime();
     }
     

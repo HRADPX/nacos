@@ -101,10 +101,13 @@ import com.alibaba.nacos.sys.utils.InetUtils;
  * {@link ServerMemberManager#isUnHealth(String)} Whether the target node is healthy
  *   判断节点是否健康（在线）状态
  * {@link ServerMemberManager#initAndStartLookup()} Initializes the addressing mode
- *   开启 LookUp 的初始化方法，暂时不知道干嘛的
+ *   开启 LookUp 的初始化方法，初始化寻址，读取配置文件所有的服务节点列表加入到集群列表中
  *
  * 该类还实现了{@link ApplicationListener}, 监听 {@link WebServerInitializedEvent} 事件，Spring 容器完成刷新后发布事件，
  * 设置当前节点信息（节点状态、ip和端口），如果是非单机启动，会同步当前节点信息给集群其他节点。
+ *
+ *
+ * 如果是集群启动，会启动一个定时同步任务，通过轮询的方式每隔 2s 选择一个服务节点，发起数据同步请求
  *
  * @author <a href="mailto:liaochuntao@live.com">liaochuntao</a>
  */
@@ -190,10 +193,12 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         serverList.put(self.getAddress(), self);
         
         // register NodeChangeEvent publisher to NotifyManager
+        // 注册节点变更事件
         registerClusterEvent();
         
         // Initializes the lookup mode
-        // 初始化寻址
+        // 初始化寻址，将集群里的服务器节点加入到 serverList 中
+        // 非单机模式下，默认使用文件寻址
         initAndStartLookup();
         
         if (serverList.isEmpty()) {
@@ -236,7 +241,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                 ServerMemberManager.this.memberAddressInfos.remove(oldAddress);
                 ServerMemberManager.this.memberAddressInfos.add(newAddress);
             }
-            
+
+            // todo huangran IPChangeEvent 事件
             @Override
             public Class<? extends Event> subscribeType() {
                 return InetUtils.IPChangeEvent.class;
@@ -269,6 +275,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
     /**
      * member information update.
      *
+     * newMember 其他服务节点
+     *
      * @param newMember {@link Member}
      * @return update is success
      */
@@ -282,6 +290,7 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         }
         
         serverList.computeIfPresent(address, (s, member) -> {
+            // todo huangran 节点状态变更逻辑
             if (NodeState.DOWN.equals(newMember.getState())) {
                 // 下线
                 memberAddressInfos.remove(newMember.getAddress());
@@ -379,7 +388,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         if (members == null || members.isEmpty()) {
             return false;
         }
-        
+
+        // 判断自身是否在变更的列表里
         boolean isContainSelfIp = members.stream()
                 .anyMatch(ipPortTmp -> Objects.equals(localAddress, ipPortTmp.getAddress()));
         
@@ -395,7 +405,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         // must have changed; if the number of clusters is the same, then compare whether
         // there is a difference; if there is a difference, then the cluster node changes
         // are involved and all recipients need to be notified of the node change event
-        
+
+        // 判断集群节点否发生变化，首次启动 serverList 只有当前节点
         boolean hasChange = members.size() != serverList.size();
         ConcurrentSkipListMap<String, Member> tmpMap = new ConcurrentSkipListMap<>();
         Set<String> tmpAddressInfo = new ConcurrentHashSet<>();
@@ -426,8 +437,13 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
         // that the event publication is sequential
         if (hasChange) {
             Loggers.CLUSTER.warn("[serverlist] updated to : {}", finalMembers);
+            // 发生变更，将集群最新的节点列表写到配置文件中
             MemberUtil.syncToFile(finalMembers);
             Event event = MembersChangeEvent.builder().members(finalMembers).build();
+            // 发布 MembersChangeEvent
+            // 1. ClusterRpcClientProxy: 更新当前节点与其他服务节点的 grpc 连接，只有 ip:port 二元组发生变化的节点才会重新建立
+            // 2. DistroMapper: 更新健康节点列表
+            // 3. ProtocolManager:
             NotifyCenter.publishEvent(event);
         } else {
             if (Loggers.CLUSTER.isDebugEnabled()) {
@@ -568,7 +584,8 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
             Member target = members.get(cursor);
             
             Loggers.CLUSTER.debug("report the metadata to the node : {}", target.getAddress());
-    
+
+            // 默认走 grpc
             if (target.getAbilities().getRemoteAbility().isGrpcReportEnabled()) {
                 reportByGrpc(target);
             } else {
@@ -626,10 +643,11 @@ public class ServerMemberManager implements ApplicationListener<WebServerInitial
                 return;
             }
 
-            // 封装请求 MemberReportRequest  --> MemberReportHandler
+            // 封装请求 MemberReportRequest  --> MemberReportHandler  --> ServerManager#update
             MemberReportRequest memberReportRequest = new MemberReportRequest(getSelf());
             
             try {
+                // 将当前节点发送给集群中的其他节点
                 MemberReportResponse response = (MemberReportResponse) clusterRpcClientProxy.sendRequest(target, memberReportRequest);
                 if (response.getResultCode() == ResponseCode.SUCCESS.getCode()) {
                     MemberUtil.onSuccess(ServerMemberManager.this, target, response.getNode());

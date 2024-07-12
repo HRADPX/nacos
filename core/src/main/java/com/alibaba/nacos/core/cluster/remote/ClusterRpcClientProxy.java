@@ -16,6 +16,20 @@
 
 package com.alibaba.nacos.core.cluster.remote;
 
+import static com.alibaba.nacos.api.exception.NacosException.CLIENT_INVALID_PARAM;
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import javax.annotation.PostConstruct;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.remote.RemoteConstants;
 import com.alibaba.nacos.api.remote.RequestCallBack;
@@ -33,18 +47,6 @@ import com.alibaba.nacos.core.cluster.MembersChangeEvent;
 import com.alibaba.nacos.core.cluster.ServerMemberManager;
 import com.alibaba.nacos.core.utils.Loggers;
 import com.alibaba.nacos.sys.env.EnvUtil;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
-
-import javax.annotation.PostConstruct;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static com.alibaba.nacos.api.exception.NacosException.CLIENT_INVALID_PARAM;
 
 /**
  * cluster rpc client proxy.
@@ -68,6 +70,7 @@ public class ClusterRpcClientProxy extends MemberChangeListener {
         try {
             NotifyCenter.registerSubscriber(this);
             List<Member> members = serverMemberManager.allMembersWithoutSelf();
+            // 创建与其他服务节点的 grpc 连接
             refresh(members);
             Loggers.CLUSTER
                     .info("[ClusterRpcClientProxy] success to refresh cluster rpc client on start up,members ={} ",
@@ -86,11 +89,13 @@ public class ClusterRpcClientProxy extends MemberChangeListener {
     private void refresh(List<Member> members) throws NacosException {
         
         //ensure to create client of new members
+        // 创建连向其他服务节点的 grpc 连接
         for (Member member : members) {
             createRpcClientAndStart(member, ConnectionType.GRPC);
         }
         
         //shutdown and remove old members.
+        // 删除已经下线的服务节点
         Set<Map.Entry<String, RpcClient>> allClientEntrys = RpcClientFactory.getAllClientEntries();
         Iterator<Map.Entry<String, RpcClient>> iterator = allClientEntrys.iterator();
         List<String> newMemberKeys = members.stream().map(this::memberClientKey).collect(Collectors.toList());
@@ -112,6 +117,7 @@ public class ClusterRpcClientProxy extends MemberChangeListener {
     private void createRpcClientAndStart(Member member, ConnectionType type) throws NacosException {
         Map<String, String> labels = new HashMap<>(2);
         labels.put(RemoteConstants.LABEL_SOURCE, RemoteConstants.LABEL_SOURCE_CLUSTER);
+        // key: "Cluster-ip:port"
         String memberClientKey = memberClientKey(member);
         RpcClient client = buildRpcClient(type, labels, memberClientKey);
         if (!client.getConnectionType().equals(type)) {

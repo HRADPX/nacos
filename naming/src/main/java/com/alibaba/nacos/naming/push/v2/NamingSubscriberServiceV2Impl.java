@@ -125,6 +125,7 @@ public class NamingSubscriberServiceV2Impl extends SmartSubscriber implements Na
             ServiceEvent.ServiceSubscribedEvent subscribedEvent = (ServiceEvent.ServiceSubscribedEvent) event;
             Service service = subscribedEvent.getService();
             // 订阅发生变更，只需推送给指定的客户端节点即可，所以属性 pushToAll 是 false
+            // 推送该服务的实例列表给当前订阅的客户端，客户端更新服务列表
             delayTaskEngine.addTask(service, new PushDelayTask(service, PushConfig.getInstance().getPushTaskDelay(),
                     subscribedEvent.getClientId()));
         }

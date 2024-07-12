@@ -168,6 +168,9 @@ public class NamingClientProxyDelegate implements NamingClientProxy {
         NAMING_LOGGER.info("[SUBSCRIBE-SERVICE] service:{}, group:{}, clusters:{} ", serviceName, groupName, clusters);
         String serviceNameWithGroup = NamingUtils.getGroupedName(serviceName, groupName);
         String serviceKey = ServiceInfo.getKey(serviceNameWithGroup, clusters);
+        // 开启一个定时来取任务，从服务端拉取服务列表，更新本地缓存。
+        // 在 Nacos 2.x 后使用 grpc 长连接后，这个任务可以看作一个补偿任务，
+        // 因为服务端在服务列表发生变更后通过主动推送的方式让客户端感知节点的变更。
         serviceInfoUpdateService.scheduleUpdateIfAbsent(serviceName, groupName, clusters);
         ServiceInfo result = serviceInfoHolder.getServiceInfoMap().get(serviceKey);
         if (null == result || !isSubscribed(serviceName, groupName, clusters)) {

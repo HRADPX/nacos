@@ -16,6 +16,8 @@
 
 package com.alibaba.nacos.naming.consistency.ephemeral.distro.v2;
 
+import java.util.concurrent.Executor;
+
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.api.remote.RequestCallBack;
 import com.alibaba.nacos.api.remote.response.Response;
@@ -38,8 +40,6 @@ import com.alibaba.nacos.naming.core.v2.event.client.ClientEvent;
 import com.alibaba.nacos.naming.misc.GlobalExecutor;
 import com.alibaba.nacos.naming.misc.Loggers;
 import com.alibaba.nacos.naming.monitor.NamingTpsMonitor;
-
-import java.util.concurrent.Executor;
 
 /**
  * Distro transport agent for v2.
@@ -77,6 +77,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
             return false;
         }
         try {
+            // DistroDataRequestHandler#handler
             Response response = clusterRpcClientProxy.sendRequest(member, request);
             return checkResponse(response);
         } catch (NacosException e) {
@@ -101,6 +102,8 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
             return;
         }
         try {
+            // 发送变更给服务端
+            // DistroDataRequestHandler#handler
             clusterRpcClientProxy.asyncRequest(member, request, new DistroRpcCallbackWrapper(callback, member));
         } catch (NacosException nacosException) {
             callback.onFailed(nacosException);
@@ -137,6 +140,7 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
             callback.onSuccess();
             return;
         }
+        // 构造请求
         DistroDataRequest request = new DistroDataRequest(verifyData, DataOperation.VERIFY);
         Member member = memberManager.find(targetServer);
         if (checkTargetServerStatusUnhealthy(member)) {
@@ -190,8 +194,10 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
                     String.format("[DISTRO] Cancel get snapshot caused by target server %s unhealthy", targetServer));
         }
         DistroDataRequest request = new DistroDataRequest();
+        // 数据操作类型：SNAPSHOT
         request.setDataOperation(DataOperation.SNAPSHOT);
         try {
+            // 发送请求，DistroDataRequestHandler 处理请求
             Response response = clusterRpcClientProxy
                     .sendRequest(member, request, DistroConfig.getInstance().getLoadDataTimeoutMillis());
             if (checkResponse(response)) {
@@ -268,9 +274,12 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
         
         private DistroVerifyCallbackWrapper(String targetServer, String clientId, DistroCallback distroCallback,
                 Member member) {
+            // targetServer 需要发送的目的服务节点
             this.targetServer = targetServer;
+            // 一个客户端连接
             this.clientId = clientId;
             this.distroCallback = distroCallback;
+            // targetServer 指向的节点实例
             this.member = member;
         }
         
@@ -291,6 +300,12 @@ public class DistroClientTransportAgent implements DistroTransportAgent {
                 distroCallback.onSuccess();
             } else {
                 Loggers.DISTRO.info("Target {} verify client {} failed, sync new client", targetServer, clientId);
+                // 版本不一致，发送认证失败事件，同步新的客户端数据。这里其他节点上备份的当前节点的客户端版本和当前节点直连的客户端版本不一致，
+                // 即其他节点上的当前客户端数据落后于当前节点，其他服务节点上该客户端数据需要和当前节点该客户端数据保持同步（因为该客户端是直接
+                // 与当前节点交互数据，所以当前节点上的该客户端数据是最新的）。这是当前节点的发布的事件，也是当前节点来处理的。
+                // targetServer 是需要同步数据的其他节点。
+                // clientId 需要同步数据的客户端连接。
+                // 处理事件的订阅者 DistroClientDataProcessor
                 NotifyCenter.publishEvent(new ClientEvent.ClientVerifyFailedEvent(clientId, targetServer));
                 NamingTpsMonitor.distroVerifyFail(member.getAddress(), member.getIp());
                 distroCallback.onFailed(null);

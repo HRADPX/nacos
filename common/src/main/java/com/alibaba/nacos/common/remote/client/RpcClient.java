@@ -312,14 +312,17 @@ public abstract class RpcClient implements Closeable {
                         // 默认 5s 进行一次心跳
                         if (System.currentTimeMillis() - lastActiveTimeStamp >= rpcClientConfig.connectionKeepAlive()) {
                             boolean isHealthy = healthCheck();
+                            // 心跳没有返回
                             if (!isHealthy) {
+                                // 同步建立连接还没有结束，等待同步连接的结果
                                 if (currentConnection == null) {
                                     continue;
                                 }
                                 LoggerUtils.printIfInfoEnabled(LOGGER,
                                         "[{}] Server healthy check fail, currentConnection = {}",
                                         rpcClientConfig.name(), currentConnection.getConnectionId());
-                                
+
+                                // 连接关闭
                                 RpcClientStatus rpcClientStatus = RpcClient.this.rpcClientStatus.get();
                                 if (RpcClientStatus.SHUTDOWN.equals(rpcClientStatus)) {
                                     break;
@@ -412,10 +415,13 @@ public abstract class RpcClient implements Closeable {
             switchServerAsync();
         }
 
-        // todo huangran 这两个 handler 的处理逻辑
+        // 客户端建立连接后，服务端注册失败后，会发送连接重置请求，客户端收到请求后，会从服务列表里
+        // 选择其他服务节重新建立连接
+        // @see com.alibaba.nacos.core.remote.grpc.GrpcBiStreamRequestAcceptor.requestBiStream
         registerServerRequestHandler(new ConnectResetRequestHandler());
         
         // register client detection request.
+        // 这个 Handler 暂时无用
         registerServerRequestHandler(request -> {
             if (request instanceof ClientDetectionRequest) {
                 return new ClientDetectionResponse();
@@ -472,6 +478,7 @@ public abstract class RpcClient implements Closeable {
         if (this.currentConnection == null) {
             return false;
         }
+        // retryTimes = 3
         int reTryTimes = rpcClientConfig.healthCheckRetryTimes();
         Random random = new Random();
         while (reTryTimes >= 0) {
@@ -600,6 +607,7 @@ public abstract class RpcClient implements Closeable {
                 try {
                     // sleep x milliseconds to switch next server.
                     if (!isRunning()) {
+                        // 第一次睡眠 100ms，后续每次时间递增 100ms，最大 5s
                         // first round, try servers at a delay 100ms;second round, 200ms; max delays 5s. to be reconsidered.
                         Thread.sleep(Math.min(retryTurns + 1, 50) * 100L);
                     }

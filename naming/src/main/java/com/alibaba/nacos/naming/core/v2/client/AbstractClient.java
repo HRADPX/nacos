@@ -53,6 +53,7 @@ public abstract class AbstractClient implements Client {
     protected final ConcurrentHashMap<Service, InstancePublishInfo> publishers = new ConcurrentHashMap<>(16, 0.75f, 1);
 
     // 客户端启动发起订阅请求时，保存 Service 和订阅者的映射关系
+    // 一个客户端可以订阅多个服务，如订单服务，用户服务等
     // SubscribeServiceRequestHandler#handle
     protected final ConcurrentHashMap<Service, Subscriber> subscribers = new ConcurrentHashMap<>(16, 0.75f, 1);
     
@@ -88,7 +89,6 @@ public abstract class AbstractClient implements Client {
             }
         }
         // 发布 ClientChangedEvent 事件 --> DistroClientDataProcessor#onEvent 同步实例信息到其他服务器上
-        // todo huangran 同步逻辑
         NotifyCenter.publishEvent(new ClientEvent.ClientChangedEvent(this));
         Loggers.SRV_LOG.info("Client change for service {}, {}", service, getClientId());
         return true;
@@ -158,6 +158,7 @@ public abstract class AbstractClient implements Client {
         List<InstancePublishInfo> instances = new LinkedList<>();
         List<BatchInstancePublishInfo> batchInstancePublishInfos = new LinkedList<>();
         BatchInstanceData  batchInstanceData = new BatchInstanceData();
+        // Service -> 客户端实例信息
         for (Map.Entry<Service, InstancePublishInfo> entry : publishers.entrySet()) {
             InstancePublishInfo instancePublishInfo = entry.getValue();
             if (instancePublishInfo instanceof BatchInstancePublishInfo) {
@@ -173,6 +174,7 @@ public abstract class AbstractClient implements Client {
             }
         }
         ClientSyncData data = new ClientSyncData(getClientId(), namespaces, groupNames, serviceNames, instances, batchInstanceData);
+        // 将版本设置到 attributes 中
         data.getAttributes().addClientAttribute(REVISION, getRevision());
         return data;
     }

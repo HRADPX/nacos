@@ -23,6 +23,9 @@ import com.alibaba.nacos.core.distributed.distro.entity.DistroData;
 /**
  * Distro data request.
  *
+ * 请求处理的类
+ * @see com.alibaba.nacos.naming.remote.rpc.handler.DistroDataRequestHandler
+ *
  * @author xiweng.yy
  */
 public class DistroDataRequest extends AbstractClusterRequest {

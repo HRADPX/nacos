@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -34,9 +35,11 @@ import org.slf4j.Logger;
 import org.springframework.stereotype.Service;
 
 import com.alibaba.nacos.api.common.Constants;
+import com.alibaba.nacos.api.remote.PushCallBack;
 import com.alibaba.nacos.api.remote.RemoteConstants;
 import com.alibaba.nacos.api.remote.RpcScheduledExecutor;
 import com.alibaba.nacos.api.remote.request.ConnectResetRequest;
+import com.alibaba.nacos.api.remote.request.ServerRequest;
 import com.alibaba.nacos.common.remote.exception.ConnectionAlreadyClosedException;
 import com.alibaba.nacos.common.spi.NacosServiceLoader;
 import com.alibaba.nacos.common.utils.StringUtils;
@@ -47,11 +50,15 @@ import com.alibaba.nacos.plugin.control.connection.request.ConnectionCheckReques
 import com.alibaba.nacos.plugin.control.connection.response.ConnectionCheckResponse;
 import com.alibaba.nacos.plugin.control.connection.rule.ConnectionControlRule;
 
+import io.grpc.Attributes;
+
 /**
  * connect manager.
  *
  * @author liuzunfei
  * @version $Id: ConnectionManager.java, v 0.1 2020年07月13日 7:07 PM liuzunfei Exp $
+ *
+ * @see #start() 开启一个定时剔除过期连接的任务
  */
 @Service
 public class ConnectionManager {
@@ -59,7 +66,8 @@ public class ConnectionManager {
     private static final Logger LOGGER = com.alibaba.nacos.plugin.control.Loggers.CONNECTION;
     
     private Map<String, AtomicInteger> connectionForClientIp = new ConcurrentHashMap<>(16);
-    
+
+    // 保存客户端连接
     Map<String, Connection> connections = new ConcurrentHashMap<>();
     
     private RuntimeConnectionEjector runtimeConnectionEjector;
@@ -146,6 +154,8 @@ public class ConnectionManager {
      * unregister a connection .
      *
      * @param connectionId connectionId.
+     * @see com.alibaba.nacos.core.remote.grpc.AddressTransportFilter#transportTerminated(Attributes)
+     * @see RpcPushService#pushWithCallback(String, ServerRequest, PushCallBack, Executor) 
      */
     public synchronized void unregister(String connectionId) {
         Connection remove = this.connections.remove(connectionId);

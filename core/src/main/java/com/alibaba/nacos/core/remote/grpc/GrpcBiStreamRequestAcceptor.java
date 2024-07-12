@@ -126,6 +126,9 @@ public class GrpcBiStreamRequestAcceptor extends BiRequestStreamGrpc.BiRequestSt
                         try {
                             Loggers.REMOTE_DIGEST.warn("[{}]Connection register fail,reason:{}", connectionId,
                                     rejectSdkOnStarting ? " server is not started" : " server is over limited.");
+                            // ConnectResetRequestHandler
+                            // 连接建立成功，但是服务端注册对这个连接注册失败了，会发一个请求给客户端，
+                            // 让客户端选择一个新的服务节点发起重新连接。
                             connection.request(new ConnectResetRequest(), 3000L);
                             connection.close();
                         } catch (Exception e) {

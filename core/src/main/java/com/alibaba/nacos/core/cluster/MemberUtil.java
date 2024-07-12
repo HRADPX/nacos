@@ -16,12 +16,6 @@
 
 package com.alibaba.nacos.core.cluster;
 
-import com.alibaba.nacos.common.utils.ExceptionUtil;
-import com.alibaba.nacos.common.utils.InternetAddressUtil;
-import com.alibaba.nacos.common.utils.StringUtils;
-import com.alibaba.nacos.core.utils.Loggers;
-import com.alibaba.nacos.sys.env.EnvUtil;
-
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -33,6 +27,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import com.alibaba.nacos.common.utils.ExceptionUtil;
+import com.alibaba.nacos.common.utils.InternetAddressUtil;
+import com.alibaba.nacos.common.utils.StringUtils;
+import com.alibaba.nacos.core.utils.Loggers;
+import com.alibaba.nacos.sys.env.EnvUtil;
 
 /**
  * Member node tool class.
@@ -84,8 +84,8 @@ public class MemberUtil {
         int port = defaultPort;
         String[] info = InternetAddressUtil.splitIPPortStr(address);
         if (info.length > 1) {
-            address = info[0];
-            port = Integer.parseInt(info[1]);
+            address = info[0];                  // ip
+            port = Integer.parseInt(info[1]);   // 端口
         }
         
         Member target = Member.builder().ip(address).port(port).state(NodeState.UP).build();
@@ -223,6 +223,7 @@ public class MemberUtil {
         Set<Member> nodes = new HashSet<>();
         
         for (String member : members) {
+            // 节点状态默认是 UP
             Member target = singleParse(member);
             nodes.add(target);
         }

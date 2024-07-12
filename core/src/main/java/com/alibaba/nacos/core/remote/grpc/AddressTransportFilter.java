@@ -16,19 +16,20 @@
 
 package com.alibaba.nacos.core.remote.grpc;
 
-import com.alibaba.nacos.common.utils.StringUtils;
-import com.alibaba.nacos.core.remote.ConnectionManager;
-import com.alibaba.nacos.core.utils.Loggers;
-import io.grpc.Attributes;
-import io.grpc.Grpc;
-import io.grpc.ServerTransportFilter;
-
-import java.net.InetSocketAddress;
-
 import static com.alibaba.nacos.core.remote.grpc.GrpcServerConstants.ATTR_TRANS_KEY_CONN_ID;
 import static com.alibaba.nacos.core.remote.grpc.GrpcServerConstants.ATTR_TRANS_KEY_LOCAL_PORT;
 import static com.alibaba.nacos.core.remote.grpc.GrpcServerConstants.ATTR_TRANS_KEY_REMOTE_IP;
 import static com.alibaba.nacos.core.remote.grpc.GrpcServerConstants.ATTR_TRANS_KEY_REMOTE_PORT;
+
+import java.net.InetSocketAddress;
+
+import com.alibaba.nacos.common.utils.StringUtils;
+import com.alibaba.nacos.core.remote.ConnectionManager;
+import com.alibaba.nacos.core.utils.Loggers;
+
+import io.grpc.Attributes;
+import io.grpc.Grpc;
+import io.grpc.ServerTransportFilter;
 
 /**
  * AddressTransportFilter process remote address, local address and connection id attributes.
@@ -62,7 +63,11 @@ public class AddressTransportFilter extends ServerTransportFilter {
         return attrWrapper;
         
     }
-    
+
+    /**
+     * 当客户端和服务端之间的长连接断开时，会回调 {@link ServerTransportFilter#transportTerminated(Attributes)}
+     * 方法，在这个方法里执行清理连接、取消注册、同步变更等逻辑
+     */
     @Override
     public void transportTerminated(Attributes transportAttrs) {
         String connectionId = null;

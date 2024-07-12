@@ -16,11 +16,11 @@
 
 package com.alibaba.nacos.naming.core.v2.client;
 
+import java.util.Collection;
+
 import com.alibaba.nacos.naming.core.v2.pojo.InstancePublishInfo;
 import com.alibaba.nacos.naming.core.v2.pojo.Service;
 import com.alibaba.nacos.naming.pojo.Subscriber;
-
-import java.util.Collection;
 
 /**
  * Nacos naming client.
